@@ -1,0 +1,444 @@
+---
+title: "Hospital Ratings CMS"
+author: "Vijay Mudivedu"
+date: '2018-09-02'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+
+### 1 Complications
+```{r}
+library(tidyverse)
+#setwd("~/Google Drive/_OneDrive_Atimi_Software/Upgrad/_Upgrad/Capstone_project/Hospital_Revised_FlatFiles_20161110/")
+```
+
+
+```{r captstone}
+complications_df <- read.csv(file = "Hospital_Revised_FlatFiles_20161110/Complications - Hospital.csv",
+                             header = T,check.names = T,stringsAsFactors = T,na.strings = c('Not Available',""))
+head(complications_df)
+#hai_df <- read.csv(file = "Hospital_Revised_FlatFiles_20161110/Healthcare Associated Infections - Hospital.csv",header = T,check.names = T,stringsAsFactors = T,na.strings = c("Not Available",""))
+#head(hai_df)
+```
+
+```{r}
+complications_df_bkup <- complications_df 
+str(complications_df)
+```
+
+```{r}
+summary(complications_df)
+
+```
+
+```{r}
+# Remove demographic details, start_data and 
+zdemogrphic_vars <- which(names(complications_df) %in% c("Address","City","State","County.Name","Phone.Number","Measure.Start.Date", "Measure.End.Date"))
+complications_df_cleaned <- complications_df[,-zdemogrphic_vars]
+head(complications_df_cleaned)
+
+```
+- measuring the distribution of NAs in the Complications dataset
+
+```{r}
+#complications_df[is.na(complications_df$Compared.to.National),]$Compared.to.National
+round(prop.table(summary(factor(complications_df_cleaned$Compared.to.National)))*100,2)  #- Thus NAs are 35% in the Compared.To.National variable
+round(prop.table(summary(factor(complications_df_cleaned$Footnote)))*100,2)  #- NAs are 65% in the Footnote variable 
+```
+
+
+```{r}
+# Analyse footnote variable
+# Distribution of Score and Denominator by Foor note
+complications_df_cleaned %>% group_by(Footnote) %>% 
+  summarise(cnt_rows = n(),Avg_denom = mean(Denominator,na.rm = T),Total_denom = sum(Denominator,na.rm = T)) %>% arrange(Avg_denom)
+
+```
+### Footnote Variable: 
+Below Footnote levels do not contribute to score, or the denominator (Total Complications) for any of the hospitals. These rows can be removed from analysis.
+1 - the number of cases/patients is too few to report.                                                                                                3464      NaN            0
+13 - results cannot be calculated for this reporting period.                                                                                         13090      NaN            0
+19 - data are shown only for hospitals that participate in the inpatient quality reporting (iqr) and outpatient quality reporting (oqr) programs.     1793      NaN            0
+4 - data suppressed by cms for one or more quarters.                                                                                                   548      NaN            0
+5 - results are not available for this reporting period.                                                                                              1950      NaN            0
+7 - no cases met the criteria for this measure.                                                                                                       1029      NaN            0
+
+
+```{r}
+zvar1 <- is.na(complications_df$Footnote) # Blank Footnotes
+zvar2 <- which(names(complications_df_cleaned) %in% "Footnote")
+complications_df_cleaned_footnote_nas <- complications_df_cleaned[zvar1,-zvar2]
+str(complications_df_cleaned_footnote_nas)
+summary(complications_df_cleaned_footnote_nas)
+```
+- analysing the NAs in the denominator and reason for NAs in the Total Number of Admissions (Denominator) variable.
+
+```{r}
+# which variable is contributing most NAs  in "Denominator" variable?
+complications_df_cleaned_footnote_nas %>% group_by(Compared.to.National) %>% 
+  summarise(cnt_rws = n(), Avg_denom = mean(Denominator,na.rm = T),Sum_Denom = sum(Denominator,na.rm = T)) %>% 
+  arrange(desc(cnt_rws))
+
+complications_df_cleaned_footnote_nas[is.na(complications_df_cleaned_footnote_nas$Denominator),] %>% summary()
+
+```
+- NAs in the Denominator (Total number of people admitted to hospital is unknown) are due to "Serious complications/ PSI_90_Safety". Lower estimate, Higher Estimate, Scores have even distribution. Removing this data wouldn't impact the overall ddistribution of the data
+
+```{r}
+complications_df_cleaned_footnote_nas_denom <-  complications_df_cleaned_footnote_nas[!is.na(complications_df_cleaned_footnote_nas$Denominator),] #%>% summary()
+# verification of scores and denominators before and imputations of of NAs
+summary(complications_df_cleaned_footnote_nas_denom)
+summary(complications_df_cleaned_footnote_nas)
+summary(complications_df_cleaned)
+
+```
+
+
+```{r}
+
+#How is the distrbituion of measures before and after removing the footnote NAs, Cleaning up the denominators of NAs
+complications_df_cleaned %>% group_by(Measure.ID) %>% summarise(cnt_rws = n(),avg_scr = mean(Score,na.rm = T),avg_denom = mean(Denominator,na.rm = T)) %>% arrange(desc(avg_scr))
+complications_df_cleaned_footnote_nas %>% group_by(Measure.ID) %>% summarise(cnt_rws = n(),avg_scr = mean(Score),avg_denom = mean(Denominator,na.rm = T)) %>% arrange(desc(avg_scr))
+complications_df_cleaned_footnote_nas_denom %>% group_by(Measure.ID) %>% summarise(cnt_rws = n(),avg_scr = mean(Score),avg_denom = mean(Denominator)) %>% arrange(desc(avg_scr))
+
+```
+- Large average scores and low denominators are due to "PSI_4_SURG_COMP: Deaths among patients with serious treatable Complications after surgery"" 
+- PSI_90_SAFETY: has no denominator score as this measure is calculated from PSI 03,06, The CMS PSI 90 is calculated from PSIs 03, 06, 08, 09, 10, 11, 12, 13, 14 and 15.
+and low average score. Hence doesn't fit well into the scoring needs.
+- PSI_4_SURG_COMP: induces low extreme outliers in "Denominator" variable and high extremes in "Scores" Variable
+
+### outlier scoring data
+
+```{r}
+# distribution of outliers
+
+ggplot(data = complications_df_cleaned_footnote_nas_denom,aes(x = Score,y = Denominator,col = Measure.ID)) + 
+  geom_point(position = position_jitter()) + 
+  facet_wrap(facets = ~ Measure.ID,scales = "free") +
+  theme(legend.position = "bottom", legend.background = element_blank())
+  #theme(legend.position = c(0.8,0.6), legend.background = element_blank())
+
+
+```
+* Clearly, the above plot shows that data is distribeted into two chunks with a clear separation. Value scores above 100, SURG COMP and value scores below 25 for the rest measure IDs
+* High Scores with Least Low "Denominators" in PSI_4_SURG_COMP is an outlier amoung the available set of variable levels.
+
+
+```{r}
+
+# removing the outelier induced by "PSI_4_SURG_COMP" PSI
+complications_df_cleaned_footnote_nas_denom_outliers <- 
+  complications_df_cleaned_footnote_nas_denom[!complications_df_cleaned_footnote_nas_denom$Measure.ID == "PSI_4_SURG_COMP",]
+
+# summary of complications df after removing the outliers induced by the "PSI_4_SURG_COMP"
+summary(complications_df_cleaned_footnote_nas_denom_outliers)
+
+```
+
+
+```{r}
+
+quantile(complications_df_cleaned_footnote_nas_denom_outliers$Denominator,probs =  seq(0, 1, 0.01),na.rm = T )
+# Plotting the outliers in the Denominators
+plot(quantile(complications_df_cleaned_footnote_nas_denom_outliers$Denominator,probs =  seq(0, 1, 0.01),na.rm = T ),
+     main = "Outliers in Denominator", ylab = "Value of Denominators",xlab = "Index")
+
+quantile(complications_df_cleaned_footnote_nas_denom_outliers$Score,probs =  seq(0, 1, 0.01),na.rm = T )
+plot(quantile(complications_df_cleaned_footnote_nas_denom_outliers$Score,probs =  seq(0, 1, 0.001),na.rm = T ),
+     main = "Outliers in Score", ylab = "Value of Scores",xlab = "Index")
+
+
+
+```
+
+- From the 96th percentile onwards the value of variable have started to increase steeply and outliers are identified around this percentile
+
+```{r}
+#steady increase in the value except the last quantile last 10% of quantile values are abrupt
+quantile(complications_df$Score,probs =  seq(0, 1, 0.01),na.rm = T ) #abrupt increase in the quantile score about 94%.
+plot(quantile(complications_df$Score,probs =  seq(0, 1, 0.01),na.rm = T )) #abrupt increase in the quantile score about 94%.
+
+```
+
+
+
+#### Analysing the outliers futher about their significance, it can be notice that
+
+```{r}
+# outliers are identified in Denominator in more >99% quantile. Filter the the records that are 99% and above of denominator
+zdenom_outliers <-  which(complications_df_cleaned_footnote_nas_denom_outliers$Denominator >= 
+                            quantile(complications_df_cleaned_footnote_nas_denom_outliers$Denominator,probs = 0.97))
+length(zdenom_outliers)
+
+complications_df_denom_outliers <- complications_df_cleaned_footnote_nas_denom_outliers[zdenom_outliers,]
+summary(complications_df_denom_outliers)
+```
+
+# eliminating the outliers in the complications cleaned dataframe
+
+
+```{r}
+
+complications_df_cleaned_score_non_outliers <- complications_df_cleaned_footnote_nas_denom_outliers[-zdenom_outliers,]
+summary(complications_df_cleaned_score_non_outliers)
+
+plot(quantile(complications_df_cleaned_score_non_outliers$Denominator,probs = seq(0,1,0.01)),type = "p",
+     main = "Denominator variable after eliminating the denominator outliers",
+     ylab = "Denominator values")
+plot(quantile(complications_df_cleaned_score_non_outliers$Score,probs = seq(0,1,0.001)),type = "p",
+     main = "Score variable after eliminating the denominator outliers",
+     ylab = "Score values")
+boxplot(complications_df_cleaned_score_non_outliers$Score)
+boxplot(complications_df_cleaned_score_non_outliers$Denominator) 
+
+
+
+```
+
+
+
+```{r}
+
+quantile(complications_df_cleaned_score_non_outliers$Score,probs = seq(0,1,0.01))
+
+zscore_outliers <-  which(complications_df_cleaned_score_non_outliers$Score >= 
+                            quantile(complications_df_cleaned_score_non_outliers$Score,probs = 0.97))
+length(zscore_outliers)
+
+
+complications_df_score_outliers <- complications_df_cleaned_score_non_outliers[zscore_outliers,]
+summary(complications_df_score_outliers)
+
+
+```
+
+
+
+```{r}
+# Applying log transformation to convert the log distribution of denominator and normalizing the variable. 
+plot(quantile(log(complications_df_cleaned_footnote_nas_denom_outliers$Score),probs =  seq(0, 1, 0.01),na.rm = T ), 
+     main = "Score - after outerliers removed from Score",
+     ylab = "Score with values")
+plot(quantile(log(complications_df_cleaned_footnote_nas_denom_outliers$Denominator),probs =  seq(0, 1, 0.01),na.rm = T ))
+
+#After removing the outliers
+plot(quantile(log(complications_df_score_outliers$Score),probs =  seq(0, 1, 0.01),na.rm = T ),main = "Score - after outerliers removed from Score",
+     ylab = "Score with values")
+plot(quantile(log(complications_df_score_outliers$Denominator),probs =  seq(0, 1, 0.01),na.rm = T ), main = "Denominator after outerliers from Score",ylab = "Denominator Values")
+
+```
+
+
+
+
+
+
+```{r}
+# Check why do you have NA in the Variable ComparedToNational
+complications_filtered_na <- complications_df[is.na(complications_df$Compared.to.National),]
+head(complications_filtered_na)
+#write.csv(x = complications_df[is.na(complications_df$Compared.to.National),],file = "complications_na_filter.csv")
+
+# From which locations most NAs are represented?
+complications_filtered_na %>% group_by(State) %>% summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows)) %>% 
+  ggplot(aes(reorder(State,-cnt_rows),cnt_rows)) + geom_col() + xlab(label = "State") + ylab(label = "count of rows")+
+  theme(axis.text.x = element_text(angle = 90))
+# Several providers from Texas have the affinity to not answer Not available
+
+# Are there any specific measures that would make a patient averse from giving NA?
+complications_filtered_na %>% group_by(Measure.Name, Measure.ID) %>% 
+  summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows))
+
+complications_filtered_na %>% group_by(Measure.Name, Measure.ID) %>% 
+  summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows)) %>% 
+  ggplot(aes(reorder(Measure.ID,-cnt_rows),cnt_rows)) + geom_col() + xlab(label = "State") + ylab(label = "count of rows") +
+  geom_text(aes(label = cnt_rows),position = position_stack(vjust = 0.5)) + 
+  theme(axis.text.x = element_text(angle = 90))
+
+# No specific measures show tendency that bring up the NAs down from Measure.ID
+
+
+
+```
+```{r}
+head(hai_df)
+str(hai)
+summary(hai_df)
+```
+
+
+```{r}
+# 2. check outliers in the measures
+compli_bxplt_outliers <- boxplot.stats(complications_df_cleaned$Score,coef = 1.58)$out
+boxplot(complications_df$Score)
+compli_bxplt_outliers
+
+complications_df_cleaned_score_outliers <-  complications_df_cleaned[which(complications_df_cleaned$Score %in% compli_bxplt_outliers),]
+head(complications_df_cleaned_score_outliers)
+summary(complications_df_cleaned_score_outliers) 
+#There are no NAs in outliers
+# intrestingly most of the outliers are in measures Surgical Complications PSI_4_SURG_COMP, Blood Stream infection after surgery
+
+# Which hospitals are contributing to most outlier scores?
+complications_df_cleaned_score_outliers %>% group_by(factor(Provider.ID), Hospital.Name) %>% summarise(cnt_row = n()) %>% arrange(desc(cnt_row))
+
+# Which state is contributing to outlier scores in complications dataset? 
+complications_df_cleaned_score_outliers %>% group_by(ZIP.Code) %>% summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows)) #Houston's County and LA Counts
+
+# spreading the measures by their scores
+complications_df_cleaned_score_outliers %>% filter(ZIP.Code == "77030")  %>% spread(key = Measure.ID,value = Score,fill = 0)  
+
+histogram(complications_df_cleaned_score_outliers$Score) # outliers are skewing the dataset heavily. 50% of the outliers are too small consider. Eliminating the lower values 
+
+# how many records are lower than the median value in outliers
+sum(complications_df_cleaned_score_outliers$Score < median(complications_df_cleaned_score_outliers$Score))/nrow(complications_df_cleaned_score_outliers)
+# about 1870/3742 - approximately 50% of records lower than the median value. 
+
+#Eliminating the outliers that cannot be measure
+complications_df_cleaned_score_outliers_lower_tail_purged <- 
+  complications_df_cleaned_score_outliers[!(complications_df_cleaned_score_outliers$Score < 
+                                              20#median(complications_df_cleaned_score_outliers$Score)
+                                            ),] 
+
+histogram(complications_df_cleaned_score_outliers_lower_tail_purged$Score)
+
+```
+
+
+#-------------------------
+#-Data preparation
+#--------------------
+
+Different things to be checked
+1. Check if there are any duplicate measures
+2. check outliers in the measures
+3. Remove unwanted rows/columns
+4. imputing missing values
+5. convert all characters to lower case
+6. check for invalid characters
+
+Numeric variables in complications dataframe are:
+
+```{r}
+# Remove unwanted Rows
+
+```
+
+
+
+```{r}
+
+zcomp <- sapply(complications_df,class)
+int_comp_var <- which(zcomp %in% c("integer",'numeric'))
+char_comp_var <- which(zcomp %in% c("factor"))
+
+complications_df[char_comp_var] <- sapply(complications_df[char_comp_var], tolower)
+head(complications_df)
+```
+
+
+```{r}
+#missing value imputation
+sapply(complications_df,function(x) sum(is.na(x))) # distribution of NAs
+```
+There are significant number of NAs in the dataset in Score, Lower Estimate, Higher Estimate.
+Calculating the percentage of NAs in Compared to National Average
+FootNote variable has 59% of data as NAs and hence unusable for analysis. 
+
+
+
+
+
+```{r}
+# NA Analysis and checking the correlation of other variables with Compared to National.
+
+sapply(complications_df[is.na(complications_df$Compared.to.National),],summary)
+library(mice)
+library(psych)
+pairs.panels(x = complications_df[int_comp_var],scale = T,ellipses = T,pch = 20,method = 'pearson',cor = T)
+      
+```
+### Comments: Removing the NAs impacts the the  score. There are 18410 
+
+
+```{r}
+# NA analaysis of the other variables
+sapply(complications_df[!is.na(complications_df$Score),],summary)
+
+```
+
+```{r}
+#check the correlation between the variables score, denominiator, lower estimate, higher estimate
+cor(complications_df[int_comp_var],use = 'complete.obs')
+```
+#### There is a strong correlation between score, lower.estimate, higher.estimate, negative correlation between the score, Lower.estimate
+
+
+
+
+
+```{r}
+# to lower
+
+```
+
+```{r}
+# remove unwanted columns
+
+
+```
+
+
+
+# 1 infections
+infected_df <- read.csv(file = "Healthcare Associated Infections - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
+View(infected_df)
+
+# 2 Patient Survey
+hcahps_survey_hopital_df <- read.csv("HCAHPS - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
+hcahps_survey_national_df <- read.csv("HCAHPS - National.csv",header = T,check.names = T,stringsasFactors = T)
+hcahps_survey_state_df <- read.csv("HCAHPS - State.csv",header = T,check.names = T,stringsasFactors = T)
+View(hcahps_hopital_df)
+
+
+# 3 General Information
+gen_info <- read.csv(file = "Hospital General Information.csv",header = T,check.names = T,stringsasFactors = T)
+View(gen_info)
+
+# 4 out patient imaging efficiency
+imaging_efficiency <- read.csv(file = "Outpatient Imaging Efficiency - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
+View(imaging_efficiency)
+
+# 5 payment and value of care
+payment_value_of_care <- read.csv(file = "Payment and Value of Care - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
+View(payment_value_of_care)
+
+# 6 readmission deaths
+readmission_deaths <- read.csv(file = "Readmissions and Deaths - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
+View(readmission_deaths)
+
+# 7 timely effective care
+Timely_effective_care <- read.csv(file = "Timely and Effective Care - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
+View(Timely_effective_care)
+
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
