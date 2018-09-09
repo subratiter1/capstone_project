@@ -172,11 +172,13 @@ plot(quantile(complications_df$Score,probs =  seq(0, 1, 0.01),na.rm = T )) #abru
 
 
 
-#### Analysing the outliers futher about their significance, it can be notice that
+#### Analysing the outliers futher about their significance, it can be noticed that
 
 ```{r}
 # outliers are identified in Denominator in more >99% quantile. Filter the the records that are 99% and above of denominator
-zdenom_outliers <-  which(complications_df_cleaned_footnote_nas_denom_outliers$Denominator >= 
+zdenom_outliers <-  which(
+  #complications_df_cleaned_footnote_nas_denom_outliers$Denominator <=  quantile(complications_df_cleaned_footnote_nas_denom_outliers$Denominator,probs = 0.1) |
+  complications_df_cleaned_footnote_nas_denom_outliers$Denominator >= 
                             quantile(complications_df_cleaned_footnote_nas_denom_outliers$Denominator,probs = 0.97))
 length(zdenom_outliers)
 
@@ -189,17 +191,17 @@ summary(complications_df_denom_outliers)
 
 ```{r}
 
-complications_df_cleaned_score_non_outliers <- complications_df_cleaned_footnote_nas_denom_outliers[-zdenom_outliers,]
+complications_df_cleaned_denom_non_outliers <- complications_df_cleaned_footnote_nas_denom_outliers[-zdenom_outliers,]
 summary(complications_df_cleaned_score_non_outliers)
 
-plot(quantile(complications_df_cleaned_score_non_outliers$Denominator,probs = seq(0,1,0.01)),type = "p",
+plot(quantile(complications_df_cleaned_denom_non_outliers$Denominator,probs = seq(0,1,0.01)),type = "p",
      main = "Denominator variable after eliminating the denominator outliers",
      ylab = "Denominator values")
-plot(quantile(complications_df_cleaned_score_non_outliers$Score,probs = seq(0,1,0.001)),type = "p",
+plot(quantile(complications_df_cleaned_denom_non_outliers$Score,probs = seq(0,1,0.001)),type = "p",
      main = "Score variable after eliminating the denominator outliers",
      ylab = "Score values")
-boxplot(complications_df_cleaned_score_non_outliers$Score)
-boxplot(complications_df_cleaned_score_non_outliers$Denominator) 
+boxplot(complications_df_cleaned_denom_non_outliers$Score)
+boxplot(complications_df_cleaned_denom_non_outliers$Denominator)
 
 
 
@@ -209,16 +211,25 @@ boxplot(complications_df_cleaned_score_non_outliers$Denominator)
 
 ```{r}
 
-quantile(complications_df_cleaned_score_non_outliers$Score,probs = seq(0,1,0.01))
+quantile(complications_df_cleaned_denom_non_outliers$Score,probs = seq(0,1,0.01))
 
-zscore_outliers <-  which(complications_df_cleaned_score_non_outliers$Score >= 
-                            quantile(complications_df_cleaned_score_non_outliers$Score,probs = 0.97))
+zscore_outliers <-  which(
+  complications_df_cleaned_denom_non_outliers$Score <= quantile(complications_df_cleaned_denom_non_outliers$Score,probs = 0.11) |
+  complications_df_cleaned_denom_non_outliers$Score >= quantile(complications_df_cleaned_denom_non_outliers$Score,probs = 0.99))
 length(zscore_outliers)
 
-
-complications_df_score_outliers <- complications_df_cleaned_score_non_outliers[zscore_outliers,]
+# Verfiying the outliers in Score variable after identify and removing the outliers in"Score" variable
+complications_df_score_outliers <- complications_df_cleaned_denom_non_outliers[zscore_outliers,]
 summary(complications_df_score_outliers)
 
+
+```
+- Large set of records from Post_HIP measure are being cleansed due to very low values of This level 
+
+```{r}
+complications_df_score_non_outliers <- complications_df_cleaned_denom_non_outliers[-zscore_outliers,]
+summary(complications_df_score_non_outliers)
+summary(complications_df_score_non_outliers$Measure.ID)
 
 ```
 
@@ -232,49 +243,116 @@ plot(quantile(log(complications_df_cleaned_footnote_nas_denom_outliers$Score),pr
 plot(quantile(log(complications_df_cleaned_footnote_nas_denom_outliers$Denominator),probs =  seq(0, 1, 0.01),na.rm = T ))
 
 #After removing the outliers
-plot(quantile(log(complications_df_score_outliers$Score),probs =  seq(0, 1, 0.01),na.rm = T ),main = "Score - after outerliers removed from Score",
-     ylab = "Score with values")
-plot(quantile(log(complications_df_score_outliers$Denominator),probs =  seq(0, 1, 0.01),na.rm = T ), main = "Denominator after outerliers from Score",ylab = "Denominator Values")
+plot(quantile(log(complications_df_score_non_outliers$Score),probs =  seq(0, 1, 0.01)),main = "Score - after outerliers removed from Score",
+    ylab = "Score with values")
+plot(quantile(log(complications_df_score_non_outliers$Denominator),probs =  seq(0, 1, 0.01)), main = "Denominator after outerliers from Score",ylab = "Denominator Values")
+
+```
+
+- Several of the values have been straightened out and 8 important measures are identified.
+
+# cleaning the unwanted variables Measure.Name, ZipCode
+```{r}
+zredundant_vars <-
+  which(names(complications_df_score_non_outliers) %in% 
+          c("Measure.Name","ZIP.Code","Lower.Estimate","Higher.Estimate","Denominator"))
+complications_df_score_non_outliers_spread <- complications_df_score_non_outliers[,-zredundant_vars]
+
+complications_df_spread <-  complications_df_score_non_outliers_spread %>% spread(key = Measure.ID,value = Score,fill = 0)# %>% head()
+str(complications_df_spread)
+
+prop.table(table(complications_df_spread$Compared.to.National))*100
+
 
 ```
 
 
-
-
-
+-  Complications variable has inequal spread of variables
 
 ```{r}
-# Check why do you have NA in the Variable ComparedToNational
-complications_filtered_na <- complications_df[is.na(complications_df$Compared.to.National),]
-head(complications_filtered_na)
-#write.csv(x = complications_df[is.na(complications_df$Compared.to.National),],file = "complications_na_filter.csv")
-
-# From which locations most NAs are represented?
-complications_filtered_na %>% group_by(State) %>% summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows)) %>% 
-  ggplot(aes(reorder(State,-cnt_rows),cnt_rows)) + geom_col() + xlab(label = "State") + ylab(label = "count of rows")+
+ggplot(data = complications_df_score_non_outliers_spread,aes(x = Measure.ID,y = Score)) + geom_boxplot() +
   theme(axis.text.x = element_text(angle = 90))
-# Several providers from Texas have the affinity to not answer Not available
-
-# Are there any specific measures that would make a patient averse from giving NA?
-complications_filtered_na %>% group_by(Measure.Name, Measure.ID) %>% 
-  summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows))
-
-complications_filtered_na %>% group_by(Measure.Name, Measure.ID) %>% 
-  summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows)) %>% 
-  ggplot(aes(reorder(Measure.ID,-cnt_rows),cnt_rows)) + geom_col() + xlab(label = "State") + ylab(label = "count of rows") +
-  geom_text(aes(label = cnt_rows),position = position_stack(vjust = 0.5)) + 
-  theme(axis.text.x = element_text(angle = 90))
-
-# No specific measures show tendency that bring up the NAs down from Measure.ID
-
-
+#complications_df_score_non_outliers %>% spread(key = Measure.ID,value = Score,fill = 0)  #%>% head() 
 
 ```
+
+# analysis for Healthcare Associated Infections - For Hosptial
+
 ```{r}
+hai_df <- read.csv(file = "Hospital_Revised_FlatFiles_20161110/Healthcare Associated Infections - Hospital.csv",na.strings = c("Not Available",""))
 head(hai_df)
-str(hai)
+str(hai_df)
 summary(hai_df)
 ```
+
+- Imputing th NAs from the dataset
+- Variables, Footnote with values
+
+
+```{r}
+hai_df %>% group_by(Footnote) %>% summarise(n(),sum(Score,na.rm = T))
+hai_df_footnote <- hai_df[is.na(hai_df$Footnote),]  # removing the invalid footnotes
+summary(hai_df_footnote)
+```
+
+- remove the demographic variables, Address, City, State, ZIP.Code, County.Name,Phone.Number,Footnote
+
+```{r}
+names(hai_df_footnote)
+
+hai_df_cleaned <- hai_df_footnote[,-which(names(hai_df_footnote) %in% c("Address", "City", "State", "ZIP.Code","Measure.Name", "County.Name","Phone.Number","Footnote","Measure.Start.Date","Measure.End.Date"))]
+remove(hai_df_footnote)
+str(hai_df_cleaned)
+summary(hai_df_cleaned)
+```
+# determine the outliers in the Score
+
+```{r}
+ggplot(data = hai_df_cleaned,aes(x = hai_df_cleaned$Measure.ID,y = Score)) + 
+  geom_boxplot() + xlab("Measure.ID") +
+  theme(axis.text.x = element_text(angle = 90))
+
+```
+
+```{r}
+hai_df_cleaned_outliers <- hai_df_cleaned[which(hai_df_cleaned$Score %in% boxplot.stats(hai_df_cleaned$Score,coef = 1.58)$out),]
+hai_df_cleaned_non_outliers <- hai_df_cleaned[-which(hai_df_cleaned$Score %in% boxplot.stats(hai_df_cleaned$Score,coef = 1.58)$out),]
+
+summary(hai_df_cleaned_non_outliers)
+
+ggplot(data = hai_df_cleaned_non_outliers,aes(x = Measure.ID,y = Score)) + 
+  geom_boxplot() + #xlab("Measure.ID") +
+  theme(axis.text.x = element_text(angle = 90))
+
+quantile(x = hai_df_cleaned_non_outliers$Score,probs = seq(0,1,0.01))
+
+hai_df_no_outliers <- hai_df_cleaned_non_outliers[which((hai_df_cleaned_non_outliers$Score >= quantile(hai_df_cleaned_non_outliers$Score,probs = c(0.15)) &
+                                                        hai_df_cleaned_non_outliers$Score <= quantile(hai_df_cleaned_non_outliers$Score,probs = c(0.9))))
+                                                  ,]
+str(hai_df_no_outliers)
+summary(hai_df_no_outliers)
+
+hai_df_spreaded <- hai_df_no_outliers %>% spread(key = Measure.ID,value = Score,fill = 0) #%>% head()
+hai_df_spreaded %>% head()
+
+#hist(x = hai_df_spreaded$HAI_1_CI_LOWER)
+#remove(hai_df_cleaned_outliers,hai_df_cleaned_non_outliers)
+
+
+ggplot(data = hai_df_no_outliers,aes(x = Measure.ID,y = Score)) + 
+  geom_boxplot() + #xlab("Measure.ID") +
+  theme(axis.text.x = element_text(angle = 90))
+
+ggplot(hai_df_no_outliers,aes(Score)) + geom_histogram() +
+  facet_wrap(~Measure.ID,scales = "free")
+
+#hist(hai_df$Measure.ID == "HAI_2_DOPC_DAYS")
+
+
+
+
+```
+
 
 
 ```{r}
