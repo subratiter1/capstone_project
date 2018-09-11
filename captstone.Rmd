@@ -314,41 +314,50 @@ ggplot(data = hai_df_cleaned,aes(x = hai_df_cleaned$Measure.ID,y = Score)) +
 
 ```
 
+
 ```{r}
-hai_df_cleaned_outliers <- hai_df_cleaned[which(hai_df_cleaned$Score %in% boxplot.stats(hai_df_cleaned$Score,coef = 1.58)$out),]
-hai_df_cleaned_non_outliers <- hai_df_cleaned[-which(hai_df_cleaned$Score %in% boxplot.stats(hai_df_cleaned$Score,coef = 1.58)$out),]
+hai_df %>% group_by(Measure.Name,Measure.ID) %>% summarise(cnt_rws = n())
+```
 
-summary(hai_df_cleaned_non_outliers)
+- A central line-associated bloodstream infection (CLABSI) is a serious infection that occurs when germs (usually bacteria or viruses) enter the bloodstream through the central line. Healthcare providers must follow a strict protocol when inserting the line to make sure the line remains sterile and a CLABSI does not occur. In addition to inserting the central line properly, healthcare providers must use stringent infection control practices each time they check the line or change the dressing. Patients who get a CLABSI have a fever, and might also have red skin and soreness around the central line. If this happens, healthcare providers can do tests to learn if there is an infection present.
 
-ggplot(data = hai_df_cleaned_non_outliers,aes(x = Measure.ID,y = Score)) + 
-  geom_boxplot() + #xlab("Measure.ID") +
+-Clostridium difficile (C. difficile) is a bacteria that causes diarrhea and can lead to serious complications. Those at highest risk for C. difficile infection include people who take antibiotics and also receive care in any medical setting, including hospitals. C. difficile bacteria produce spores that can be spread from patient to patient. Symptoms from C. diff infections often take a few days to develop. Patients are tested for C. diff. infections if they show signs of illness while in the hospital. This measure compares the number of stool specimens that tested positive for C. diff toxin four or more days after the patient entered the hospital to a national benchmark.
+
+- CAUTI -Catheter Associated Urinary Tract Infections: A urinary tract infection (UTI) is an infection involving any part of the urinary system, including urethra, bladder, ureters, and kidney. UTIs are the most common type of healthcare-associated infection reported to the National Healthcare Safety Network (NHSN).  Among UTIs acquired in the hospital, approximately 75% are associated with a urinary catheter, which is a tube inserted into the bladder through the urethra to drain urine.  Between 15-25% of hospitalized patients receive urinary catheters during their hospital stay.  The most important risk factor for developing a catheter-associated UTI (CAUTI) is prolonged use of the urinary catheter.  Therefore, catheters should only be used for appropriate indications and should be removed as soon as they are no longer needed.
+
+
+- Considering the SIRs, that Centre for Diesease Control and Prevention uses to calculate. Standard Infection Ration (SIR) which takes into account patient care location, number of patients with an exisiting infection, lab mehtords, hed size, afficialiton with a medical schools, bed size of the hospital, age of patients.
+
+- central line-associated bloodstream infections (CLABSI), catheter- associated urinary tract infections (CAUTI), surgical site infection (SSI) from colon surgery or abdominal hysterectomy, methicillin-resistant Staphylococcus Aureus (MRSA) blood laboratory-identified events (bloodstream infections), and Clostridium difficile (C.diff.) laboratory-identified events (intestinal infections). The HAI measures show how often patients in a particular hospital contract certain infections during the couse of their medical treatment
+
+HAI_1_SIR, HAI_1a_SIR, HAI_2_SIR, HAI_2a_SIR, HAI_6_SIR,HAI_4_SIR, HAI_5_SIR, HAI_3_SIR
+
+HAI-1 measure tracks central-line associated bloodstream infections (CLABSI) in ICUs and select wards. 
+HAI-1a measure tracks central-line associated bloodstream infections (CLABSI) in ICUs. The HAI-1 measure will be phased in over the next year to replace the HAI-1a measure.
+HAI-2 measure tracks catheter-associated urinary tract infections (CAUTI) in ICUs and select wards. 
+The HAI-2a measure only tracks catheter-associated urinary tract infections (CAUTI) in ICUs. 
+The HAI-2 measure will be phased in over the next year to replace the HAI-2a measure.
+
+
+```{r}
+hai_measures <- c("HAI_1_SIR", "HAI_1a_SIR", "HAI_2_SIR", "HAI_2a_SIR", "HAI_3_SIR", "HAI_4_SIR", "HAI_5_SIR", "HAI_6_SIR")
+
+# FIlterig the measure.ids useful for analysis
+hai_df_cleaned_measure_ids <- hai_df_cleaned[which(hai_df_cleaned$Measure.ID %in% hai_measures),]
+
+ggplot(data = hai_df_cleaned_measure_ids,aes(x = Mboxploeasure.ID,y = Score)) + 
+  geom_boxplot() + xlab("Measure.ID") +
   theme(axis.text.x = element_text(angle = 90))
 
-quantile(x = hai_df_cleaned_non_outliers$Score,probs = seq(0,1,0.01))
+quantile(hai_df_cleaned_measure_ids$Score,probs = seq(0,1,0.01)) # 99.9 percentile and above
+summary(quantile(hai_df_cleaned_measure_ids$Score,probs = 0.999)) 
 
-hai_df_no_outliers <- hai_df_cleaned_non_outliers[which((hai_df_cleaned_non_outliers$Score >= quantile(hai_df_cleaned_non_outliers$Score,probs = c(0.15)) &
-                                                        hai_df_cleaned_non_outliers$Score <= quantile(hai_df_cleaned_non_outliers$Score,probs = c(0.9))))
-                                                  ,]
-str(hai_df_no_outliers)
+hai_df_no_outliers <- hai_df_cleaned_measure_ids[-which((hai_df_cleaned_measure_ids$Score >= quantile(hai_df_cleaned_measure_ids$Score,probs = 0.999))),]
+
 summary(hai_df_no_outliers)
 
-hai_df_spreaded <- hai_df_no_outliers %>% spread(key = Measure.ID,value = Score,fill = 0) #%>% head()
-hai_df_spreaded %>% head()
-
-#hist(x = hai_df_spreaded$HAI_1_CI_LOWER)
-#remove(hai_df_cleaned_outliers,hai_df_cleaned_non_outliers)
-
-
-ggplot(data = hai_df_no_outliers,aes(x = Measure.ID,y = Score)) + 
-  geom_boxplot() + #xlab("Measure.ID") +
-  theme(axis.text.x = element_text(angle = 90))
-
-ggplot(hai_df_no_outliers,aes(Score)) + geom_histogram() +
-  facet_wrap(~Measure.ID,scales = "free")
-
-#hist(hai_df$Measure.ID == "HAI_2_DOPC_DAYS")
-
-
+ggplot(hai_df_no_outliers,aes(y = Score)) + geom_boxplot() + 
+  facet_wrap(facets = "Measure.ID",scales = "free")
 
 
 ```
@@ -356,41 +365,138 @@ ggplot(hai_df_no_outliers,aes(Score)) + geom_histogram() +
 
 
 ```{r}
-# 2. check outliers in the measures
-compli_bxplt_outliers <- boxplot.stats(complications_df_cleaned$Score,coef = 1.58)$out
-boxplot(complications_df$Score)
-compli_bxplt_outliers
+# Spreading the measure ids
+hai_df_spreaded <- hai_df_no_outliers %>% spread(key = Measure.ID,value = Score,fill = 0)
 
-complications_df_cleaned_score_outliers <-  complications_df_cleaned[which(complications_df_cleaned$Score %in% compli_bxplt_outliers),]
-head(complications_df_cleaned_score_outliers)
-summary(complications_df_cleaned_score_outliers) 
-#There are no NAs in outliers
-# intrestingly most of the outliers are in measures Surgical Complications PSI_4_SURG_COMP, Blood Stream infection after surgery
+hai_df_no_outliers %>% group_by(Compared.to.National,Measure.ID) %>% summarise(cnt_rows = n()) %>% arrange(Measure.ID,desc(cnt_rows)) %>%
+  ggplot(aes(reorder(Measure.ID,cnt_rows),cnt_rows)) + geom_col() + facet_wrap(facets = ~Compared.to.National) + xlab(label = "Measure.ID") +
+  theme(axis.text.x = element_text(angle = 90)) 
 
-# Which hospitals are contributing to most outlier scores?
-complications_df_cleaned_score_outliers %>% group_by(factor(Provider.ID), Hospital.Name) %>% summarise(cnt_row = n()) %>% arrange(desc(cnt_row))
+hai_df_spreaded %>% spread(key = Compared.to.National,value = 0)
 
-# Which state is contributing to outlier scores in complications dataset? 
-complications_df_cleaned_score_outliers %>% group_by(ZIP.Code) %>% summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows)) #Houston's County and LA Counts
+head(hai_df_spreaded)
+str(hai_df_spreaded)
+summary(hai_df_spreaded)
 
-# spreading the measures by their scores
-complications_df_cleaned_score_outliers %>% filter(ZIP.Code == "77030")  %>% spread(key = Measure.ID,value = Score,fill = 0)  
 
-histogram(complications_df_cleaned_score_outliers$Score) # outliers are skewing the dataset heavily. 50% of the outliers are too small consider. Eliminating the lower values 
-
-# how many records are lower than the median value in outliers
-sum(complications_df_cleaned_score_outliers$Score < median(complications_df_cleaned_score_outliers$Score))/nrow(complications_df_cleaned_score_outliers)
-# about 1870/3742 - approximately 50% of records lower than the median value. 
-
-#Eliminating the outliers that cannot be measure
-complications_df_cleaned_score_outliers_lower_tail_purged <- 
-  complications_df_cleaned_score_outliers[!(complications_df_cleaned_score_outliers$Score < 
-                                              20#median(complications_df_cleaned_score_outliers$Score)
-                                            ),] 
-
-histogram(complications_df_cleaned_score_outliers_lower_tail_purged$Score)
 
 ```
+
+- standardization of scores (Measure_score - mean_score)/standard.deviation.score
+
+```{r}
+options(scipen = 100)
+
+hai_df_spreaded$HAI_1_SIR
+
+round((hai_df_no_outliers$Score - mean(hai_df_spreaded$HAI_1_SIR))/sd(hai_df_spreaded$HAI_1_SIR),2) %>% summary
+
+
+
+```
+
+
+```{r}
+# hai_df_cleaned_outliers <- hai_df_cleaned[which(hai_df_cleaned$Score %in% boxplot.stats(hai_df_cleaned$Score,coef = 1.58)$out),]
+# hai_df_cleaned_non_outliers <- hai_df_cleaned[-which(hai_df_cleaned$Score %in% boxplot.stats(hai_df_cleaned$Score,coef = 1.58)$out),]
+# 
+# summary(hai_df_cleaned_non_outliers)
+# 
+# ggplot(data = hai_df_cleaned_non_outliers,aes(x = Measure.ID,y = Score)) + 
+#   geom_boxplot() + #xlab("Measure.ID") +
+#   theme(axis.text.x = element_text(angle = 90))
+# 
+# quantile(x = hai_df_cleaned_non_outliers$Score,probs = seq(0,1,0.01))
+# 
+# hai_df_no_outliers <- hai_df_cleaned_non_outliers[which((hai_df_cleaned_non_outliers$Score >= quantile(hai_df_cleaned_non_outliers$Score,probs = c(0.15)) &
+#                                                         hai_df_cleaned_non_outliers$Score <= quantile(hai_df_cleaned_non_outliers$Score,probs = c(0.9))))
+#                                                   ,]
+# str(hai_df_no_outliers)
+# summary(hai_df_no_outliers)
+# 
+# hai_df_spreaded <- hai_df_no_outliers %>% spread(key = Measure.ID,value = Score,fill = 0) #%>% head()
+# hai_df_spreaded %>% head()
+# 
+# ggplot(data = hai_df_no_outliers,aes(x = Measure.ID,y = Score)) + 
+#   geom_boxplot() + #xlab("Measure.ID") +
+#   theme(axis.text.x = element_text(angle = 90))
+# 
+# ggplot(hai_df_no_outliers,aes(Score)) + geom_histogram() +
+#   facet_wrap(~Measure.ID,scales = "free")
+
+
+```
+
+
+
+```{r}
+# # 2. check outliers in the measures
+# compli_bxplt_outliers <- boxplot.stats(complications_df_cleaned$Score,coef = 1.58)$out
+# boxplot(complications_df$Score)
+# compli_bxplt_outliers
+# 
+# complications_df_cleaned_score_outliers <-  complications_df_cleaned[which(complications_df_cleaned$Score %in% compli_bxplt_outliers),]
+# head(complications_df_cleaned_score_outliers)
+# summary(complications_df_cleaned_score_outliers) 
+# #There are no NAs in outliers
+# # intrestingly most of the outliers are in measures Surgical Complications PSI_4_SURG_COMP, Blood Stream infection after surgery
+# 
+# # Which hospitals are contributing to most outlier scores?
+# complications_df_cleaned_score_outliers %>% group_by(factor(Provider.ID), Hospital.Name) %>% summarise(cnt_row = n()) %>% arrange(desc(cnt_row))
+# 
+# # Which state is contributing to outlier scores in complications dataset? 
+# complications_df_cleaned_score_outliers %>% group_by(ZIP.Code) %>% summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows)) #Houston's County and LA Counts
+# 
+# # spreading the measures by their scores
+# complications_df_cleaned_score_outliers %>% filter(ZIP.Code == "77030")  %>% spread(key = Measure.ID,value = Score,fill = 0)  
+# 
+# histogram(complications_df_cleaned_score_outliers$Score) # outliers are skewing the dataset heavily. 50% of the outliers are too small consider. Eliminating the lower values 
+# 
+# # how many records are lower than the median value in outliers
+# sum(complications_df_cleaned_score_outliers$Score < median(complications_df_cleaned_score_outliers$Score))/nrow(complications_df_cleaned_score_outliers)
+# # about 1870/3742 - approximately 50% of records lower than the median value. 
+# 
+# #Eliminating the outliers that cannot be measure
+# complications_df_cleaned_score_outliers_lower_tail_purged <- 
+#   complications_df_cleaned_score_outliers[!(complications_df_cleaned_score_outliers$Score < 
+#                                               20#median(complications_df_cleaned_score_outliers$Score)
+#                                             ),] 
+# 
+# histogram(complications_df_cleaned_score_outliers_lower_tail_purged$Score)
+
+```
+
+
+
+# General Information
+
+```{r}
+general_info <- read.csv(file = "Hospital_Revised_FlatFiles_20161110//Hospital General Information.csv",header = T,check.names = T)
+head(general_info)
+str(general_info)
+summary(general_info)
+View(general_info)
+sum(duplicated(general_info$Provider.ID))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #-------------------------
