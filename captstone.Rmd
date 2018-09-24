@@ -221,9 +221,19 @@ dim(complications_df_spread)
 summary(complications_df_spread)
 ```
 
+```{r}
+library(psych)
+pairs.panels(x = complications_df_spread[2:ncol(complications_df_spread)],
+             bg = rainbow(n = 12),
+             smooth = TRUE,
+             ellipses = TRUE,pch = 21,cex.cor = 0.05
+             )
 
+```
 
+- Some of the variabels are very variability for example, "PSI_90_SAFETY","COMP_HIP_KNEE" exhibit high variability compared to other measures. 
 - Considering the signficant variable measures from these Complications Dataset
+
 
 ```{r}
 zvar1 <- which(names(complications_df_spread) %in% c("Provider.ID","PSI_90_SAFETY","COMP_HIP_KNEE"))
@@ -239,9 +249,6 @@ str(complications_df_final)
 ```{r}
 hai_df <- read.csv(file = "~/Google Drive/_OneDrive_Atimi_Software/Upgrad/_Upgrad/Capstone_project/capstone_project/ValidFiles/Healthcare Associated Infections - Hospital.csv",na.strings = c("Not Available",""))
 head(hai_df)
-
-
-
 ```
 
 ```{r}
@@ -373,14 +380,49 @@ head(safety_of_care_group)
 # ANALYSIS OF HCAPHS SURVEY
 
 ```{r}
-
-
+hcaphs_df <- read.csv(file = "ValidFiles/HCAHPS - Hospital.csv",header = TRUE,check.names = TRUE,na.strings = c("Not Available","Not Applicable",""))
+head(hcaphs_df)
 ```
 
 
+# removing the demographic columns, Mesaure Start Date and measure end data columns
+
+```{r}
+zdemographics
+hcaphs_df_cleaned <- hcaphs_df[,-which(names(hcaphs_df) %in% zdemographics)]
+summary(hcaphs_df_cleaned)
+
+```
+H_COMP_1_LINEAR_SCORE, H_COMP_2_LINEAR_SCORE, H_COMP_3_LINEAR_SCORE, H_COMP_4_LINEAR_SCORE, H_COMP_5_LINEAR_SCORE, 
+H_COMP_6_LINEAR_SCORE, H_COMP_7_LINEAR_SCORE, H_HSP_RATING_LINEAR_SCORE, H_QUIET_LINEAR_SCORE,H_RECMND_LINEAR_SCORE, H_CLEAN_LINEAR_SCORE, 
+
+H_COMP_1, H_COMP_2, H_COMP_3, H_COMP_4, H_COMP_5, H_COMP_6, H_COMP_7, H_HSP_RATING, H_QUIET,H_RECMND, H_CLEAN_HSP
+
+* selecting the above measures from the 
 
 
+* selecting the required measures
+```{r}
+levels(hcaphs_df$HCAHPS.Measure.ID)
+hcaphs_measures <- c("H_COMP_1_LINEAR_SCORE", "H_COMP_2_LINEAR_SCORE", "H_COMP_3_LINEAR_SCORE", "H_COMP_4_LINEAR_SCORE", "H_COMP_5_LINEAR_SCORE", 
+"H_COMP_6_LINEAR_SCORE", "H_COMP_7_LINEAR_SCORE", "H_HSP_RATING_LINEAR_SCORE", "H_QUIET_LINEAR_SCORE","H_RECMND_LINEAR_SCORE", "H_CLEAN_LINEAR_SCORE")
 
+hcaphs_df_measures <- hcaphs_df_cleaned %>% filter(hcaphs_df_cleaned$HCAHPS.Measure.ID %in% hcaphs_measures)
+
+summary(hcaphs_df_measures)
+zdistri_vars <- c("Provider.ID","HCAHPS.Measure.ID","HCAHPS.Linear.Mean.Value","Number.of.Completed.Surveys","Survey.Response.Rate.Percent.Footnote","Number.of.Completed.Surveys.Footnote")
+
+hcaphs_df_measures_distri <- hcaphs_df_measures[,zdistri_vars] 
+```
+
+```{r}
+hcaphs_df_measures_distri[is.na(hcaphs_df_measures_distri$HCAHPS.Linear.Mean.Value),] %>% summary()
+```
+Eliminating the rows that have been invalid scores, too few cases to report, Results are unavailable
+
+```{r}
+ hcaphs_df_measures_distri[!is.na(hcaphs_df_measures_distri$Survey.Response.Rate.Percent.Footnote),]
+```
 
 
 
