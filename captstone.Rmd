@@ -390,9 +390,10 @@ head(hcaphs_df)
 ```{r}
 zdemographics
 hcaphs_df_cleaned <- hcaphs_df[,-which(names(hcaphs_df) %in% zdemographics)]
-summary(hcaphs_df_cleaned)
-
 ```
+
+- Extracting the Measure IDs of importance are:
+
 H_COMP_1_LINEAR_SCORE, H_COMP_2_LINEAR_SCORE, H_COMP_3_LINEAR_SCORE, H_COMP_4_LINEAR_SCORE, H_COMP_5_LINEAR_SCORE, 
 H_COMP_6_LINEAR_SCORE, H_COMP_7_LINEAR_SCORE, H_HSP_RATING_LINEAR_SCORE, H_QUIET_LINEAR_SCORE,H_RECMND_LINEAR_SCORE, H_CLEAN_LINEAR_SCORE, 
 
@@ -408,23 +409,46 @@ hcaphs_measures <- c("H_COMP_1_LINEAR_SCORE", "H_COMP_2_LINEAR_SCORE", "H_COMP_3
 "H_COMP_6_LINEAR_SCORE", "H_COMP_7_LINEAR_SCORE", "H_HSP_RATING_LINEAR_SCORE", "H_QUIET_LINEAR_SCORE","H_RECMND_LINEAR_SCORE", "H_CLEAN_LINEAR_SCORE")
 
 hcaphs_df_measures <- hcaphs_df_cleaned %>% filter(hcaphs_df_cleaned$HCAHPS.Measure.ID %in% hcaphs_measures)
+hcaphs_df_measures$HCAHPS.Measure.ID <- as.character(hcaphs_df_measures$HCAHPS.Measure.ID)
+hcaphs_df_measures$HCAHPS.Measure.ID <- str_replace(string = hcaphs_df_measures$HCAHPS.Measure.ID,pattern = "_LINEAR_SCORE",replacement = "")
+hcaphs_df_measures$HCAHPS.Measure.ID <- as.factor(hcaphs_df_measures$HCAHPS.Measure.ID)
+str(hcaphs_df_measures)
+```
 
-summary(hcaphs_df_measures)
-zdistri_vars <- c("Provider.ID","HCAHPS.Measure.ID","HCAHPS.Linear.Mean.Value","Number.of.Completed.Surveys","Survey.Response.Rate.Percent.Footnote","Number.of.Completed.Surveys.Footnote")
+
+```{r}
+ggplot(hcaphs_df_measures,aes(HCAHPS.Measure.ID,HCAHPS.Linear.Mean.Value)) + geom_col() + theme(axis.text.x = element_text(angle = 45,hjust = 1, vjust = 1)) 
+```
+
+
+
+```{r}
+zdistri_vars <- c("Provider.ID","HCAHPS.Measure.ID","HCAHPS.Linear.Mean.Value","Number.of.Completed.Surveys",
+                  "Survey.Response.Rate.Percent.Footnote","Number.of.Completed.Surveys.Footnote")
 
 hcaphs_df_measures_distri <- hcaphs_df_measures[,zdistri_vars] 
 ```
 
+- which meansures have NA scores?
+
 ```{r}
+levels(hcaphs_df_measures_distri$HCAHPS.Measure.ID)
 hcaphs_df_measures_distri[is.na(hcaphs_df_measures_distri$HCAHPS.Linear.Mean.Value),] %>% summary()
 ```
-Eliminating the rows that have been invalid scores, too few cases to report, Results are unavailable
+- Eliminating the rows that have NA scores  1. too few cases to report, 2. Results are unavailable for the current reporting period 3. Data Specific to IQR and OQR
 
 ```{r}
- hcaphs_df_measures_distri[!is.na(hcaphs_df_measures_distri$Survey.Response.Rate.Percent.Footnote),]
+hcaphs_df_measures_distri[is.na(hcaphs_df_measures_distri$Survey.Response.Rate.Percent.Footnote),] %>% summary()
+hcaphs_df_measures_distri <- hcaphs_df_measures_distri[is.na(hcaphs_df_measures_distri$Survey.Response.Rate.Percent.Footnote),c(1,2,3)]
+
 ```
 
 
+```{r}
+hcaphs_df_final <- hcaphs_df_measures_distri %>% spread(key = HCAHPS.Measure.ID, value = HCAHPS.Linear.Mean.Value)
+summary(hcaphs_df_final)
+remove(hcaphs_df_measures,hcaphs_df_measures_distri)
+```
 
 
 <!-- ```{r} -->
