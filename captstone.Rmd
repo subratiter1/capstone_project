@@ -181,9 +181,6 @@ str(complications_df_cleaned_footnote_nas)
 summary(complications_df_cleaned_footnote_nas)
 ```
 - Imputing the "NAs" resulted in inducing the variability in each of the variables. 
-```{r}
-ggplot(complications_df_cleaned_footnote_nas,aes(Measure.ID)) + geom_bar() + theme(axis.text.x = element_text(angle = 90))
-```
 
 - Analysing the Denominator (Total Number of Admissions) variable for the reason behind the NAs.
 
@@ -193,9 +190,11 @@ ggplot(complications_df_cleaned_footnote_nas,aes(Measure.ID)) + geom_bar() + the
 library(reshape2)
 complications_df_cleaned_footnote_nas %>% group_by(Measure.ID) %>% 
   summarise(cnt_rws = n(), Sum_score = sum(Score,na.rm = T),
-            Sum_Denom = sum(Denominator,na.rm = T)) %>% 
+            mean_Score = mean(Score,na.rm = T)) %>% 
   arrange(desc(cnt_rws)) %>% melt(value.name = c("value")) %>%
-  ggplot(aes(x = Measure.ID,y = value)) + geom_col() + facet_wrap(facets = ~ variable,scales = "free") + theme(axis.text.x = element_text(angle = 90))
+  ggplot(aes(x = Measure.ID,y = value)) + geom_col() + facet_wrap(facets = ~ variable,scales = "free",ncol = 3) + 
+  theme(axis.text.x = element_text(angle = 90,vjust = 0.5,hjust = 1))
+
 
 complications_df_cleaned_footnote_nas[is.na(complications_df_cleaned_footnote_nas$Denominator),] %>% summary()
 
@@ -203,10 +202,10 @@ complications_df_cleaned_footnote_nas[is.na(complications_df_cleaned_footnote_na
 - NAs in the Denominator (Total number of people admitted to hospital is unknown) is due to "Serious complications/ PSI_90_Safety". Lower estimate, Higher Estimate, Scores have even distribution. Removing this data wouldn't impact the overall ddistribution of the data
 
 - Since the Denominator is not a signficiaant variabel for analysis, there is no impact on the analysis NAs in Denomintor variable move on.
-- Significant Measures from these measure Ids are "PSI_90_SAFETY","PSI_4_SURG_COMP"
-- "COMP_HIP_KNEE" is the other significant measure
+- Significant Measures from these measure Ids are "PSI_90_SAFETY","PSI_4_SURG_COMP" "COMP_HIP_KNEE" is the other significant measure
 
 - rejecting the Denominoator, Lower Estimate, Higher Estimate, Compared.to.National variables
+- Important measures are 
 
 ```{r}
 
@@ -222,17 +221,18 @@ dim(complications_df_spread)
 summary(complications_df_spread)
 ```
 
+
+
 - Considering the signficant variable measures from these Complications Dataset
 
 ```{r}
-zvar1 <- which(names(complications_df_spread) %in% c("Provider.ID","PSI_4_SURG_COMP","PSI_90_SAFETY","COMP_HIP_KNEE"))
+zvar1 <- which(names(complications_df_spread) %in% c("Provider.ID","PSI_90_SAFETY","COMP_HIP_KNEE"))
 
 complications_df_final <- complications_df_spread[,zvar1]
 
 str(complications_df_final)
 
 ```
-
 
 # Analysis for Healthcare Associated Infections - For Hosptial
 
@@ -257,19 +257,16 @@ summary(hai_df)
 - remove the demographic variables, Address, City, State, ZIP.Code, County.Name,Phone.Number,Footnote
 
 ```{r}
-names(hai_df_footnote)
-
-hai_df_cleaned <- hai_df[,-which(names(hai_df_footnote) %in% c(zdemographics))]
+zdemographics <- c("Hospital.Name","Address","City","State","County.Name","Phone.Number","ZIP.Code","Measure.Start.Date","Measure.End.Date")
+hai_df_cleaned <- hai_df[,-which(names(hai_df) %in% c(zdemographics))]
 str(hai_df_cleaned)
 summary(hai_df_cleaned)
 ```
 
-- Imputing th NAs from the dataset
-- Variables, Footnote with values
-
+- Imputing the NAs from the Hospital Associated Infections dataset - Variables, Footnote with values
 
 ```{r}
-hai_df %>% group_by(Footnote) %>% summarise(count_rows = n(),score_total = sum(Score,na.rm = T))
+hai_df_cleaned %>% group_by(Footnote) %>% summarise(count_rows = n(),score_total = sum(Score,na.rm = T))
 ```
 - Footnote variable that briefs out the imperfections associated with the score for each related level
 - Considering the blank in the footnotes that carry more weightage to the score
@@ -292,7 +289,8 @@ ggplot(data = hai_df_cleaned,aes(x = hai_df_cleaned$Measure.ID,y = Score)) +
 
 ```
 
-* There are abnormal outliers in the dataset from the measure IDs HAI_1_DOPC_Days and as they do not contribute to the overall score
+* There are abnormal outliers in the dataset from the measure IDs HAI_1_DOPC_Days, besides this they do not contribute to the overall score
+- Summarise the distribution of the mueasures. 
 
 
 ```{r}
@@ -306,16 +304,14 @@ hai_df %>% group_by(Measure.Name,Measure.ID) %>% summarise(cnt_rws = n())
 - CAUTI -Catheter Associated Urinary Tract Infections: A urinary tract infection (UTI) is an infection involving any part of the urinary system, including urethra, bladder, ureters, and kidney. UTIs are the most common type of healthcare-associated infection reported to the National Healthcare Safety Network (NHSN).  Among UTIs acquired in the hospital, approximately 75% are associated with a urinary catheter, which is a tube inserted into the bladder through the urethra to drain urine.  Between 15-25% of hospitalized patients receive urinary catheters during their hospital stay.  The most important risk factor for developing a catheter-associated UTI (CAUTI) is prolonged use of the urinary catheter.  Therefore, catheters should only be used for appropriate indications and should be removed as soon as they are no longer needed.
 
 
-- Considering the SIRs, that Centre for Diesease Control and Prevention uses to calculate. Standard Infection Ration (SIR) which takes into account patient care location, number of patients with an exisiting infection, lab mehtords, hed size, afficialiton with a medical schools, bed size of the hospital, age of patients.
+- Considering the SIRs, that Centre for Diesease Control and Prevention uses to calculate. Standard Infection Ratio (SIR) which takes into account patient care location, number of patients with an exisiting infection, lab mehtords, bed size, afficialiton with a medical schools, bed size of the hospital, age of patients.
 
 - central line-associated bloodstream infections (CLABSI), catheter- associated urinary tract infections (CAUTI), surgical site infection (SSI) from colon surgery or abdominal hysterectomy, methicillin-resistant Staphylococcus Aureus (MRSA) blood laboratory-identified events (bloodstream infections), and Clostridium difficile (C.diff.) laboratory-identified events (intestinal infections). The HAI measures show how often patients in a particular hospital contract certain infections during the couse of their medical treatment
 
 HAI_1_SIR, HAI_1a_SIR, HAI_2_SIR, HAI_2a_SIR, HAI_6_SIR,HAI_4_SIR, HAI_5_SIR, HAI_3_SIR
 
 HAI-1 measure tracks central-line associated bloodstream infections (CLABSI) in ICUs and select wards. 
-HAI-1a measure tracks central-line associated bloodstream infections (CLABSI) in ICUs. The HAI-1 measure will be phased in over the next year to replace the HAI-1a measure.
 HAI-2 measure tracks catheter-associated urinary tract infections (CAUTI) in ICUs and select wards. 
-HAI-2a measure only tracks catheter-associated urinary tract infections (CAUTI) in ICUs. 
 HAI-3 Surgical Site Infection from colon surgery (SSI: Colon)
 HAI-4 Surgical Site Infection from abdominal hysterectomy (SSI: Hysterectomy)
 HAI-5 Methicillin-resistant Staphylococcus Aureus (MRSA) Blood Laboratory-identified Events (Bloodstream infections)
@@ -323,33 +319,63 @@ HAI-6 Clostridium difficile (C.diff.) Laboratory-identified Events (Intestinal i
 
 
 ```{r}
-hai_measures <- c("HAI_1_SIR", "HAI_1a_SIR", "HAI_2_SIR", "HAI_2a_SIR", "HAI_3_SIR", "HAI_4_SIR", "HAI_5_SIR", "HAI_6_SIR")
+hai_measures <- c("HAI_1_SIR", "HAI_2_SIR", "HAI_3_SIR", "HAI_4_SIR", "HAI_5_SIR", "HAI_6_SIR")
 
 # Filterig the measure.ids useful for analysis
 hai_df_cleaned <- hai_df_cleaned[which(hai_df_cleaned$Measure.ID %in% hai_measures),]
 
+```
+
+```{r}
 ggplot(data = hai_df_cleaned,aes(x = Measure.ID,y = Score)) + 
-  geom_boxplot() + xlab("Measure.ID") +
+  geom_boxplot(na.rm = T) + xlab("Measure.ID") +
   theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+ggplot(data = hai_df_cleaned,aes(x = Measure.ID,y = Score)) + 
+  geom_col(position = position_stack(),na.rm = TRUE) + xlab("Measure.ID") +
+  theme(axis.text.x = element_text(angle = 90,vjust = 0.5,hjust = 1))
 
 ```
+
+
 
 ```{r}
 summary(hai_df_cleaned)
 ```
 
-- selecting the required columns for analyysis
+- selecting the required columns for analysis
 
 ```{r}
 zvar1 <- c( "Provider.ID", "Measure.ID", "Score")
 zvar2 <- which(names(hai_df_cleaned) %in% zvar1)
 
 hai_df_final <- hai_df_cleaned[,zvar2] %>% spread(key = "Measure.ID",value = "Score")
+summary(hai_df_final)
+
+```
+
+# Creating a Patient Safety group
+
+```{r}
+gen_inf_compli_df <- merge(x = general_info_final,y = complications_df_final,all = TRUE, by = intersect(x = names(general_info_final),y = names(complications_df_final)))
+
+safety_of_care_group <- merge(x = gen_inf_compli_df,y = hai_df_final,all = TRUE,by = intersect(x = names(gen_inf_compli_df),y = names(hai_df_final)))
+
+head(safety_of_care_group)
+
 
 ```
 
 
 
+# ANALYSIS OF HCAPHS SURVEY
+
+```{r}
+
+
+```
 
 
 
