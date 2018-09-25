@@ -417,12 +417,6 @@ str(hcaphs_df_measures)
 
 
 ```{r}
-ggplot(hcaphs_df_measures,aes(HCAHPS.Measure.ID,HCAHPS.Linear.Mean.Value)) + geom_col() + theme(axis.text.x = element_text(angle = 45,hjust = 1, vjust = 1)) 
-```
-
-
-
-```{r}
 zdistri_vars <- c("Provider.ID","HCAHPS.Measure.ID","HCAHPS.Linear.Mean.Value","Number.of.Completed.Surveys",
                   "Survey.Response.Rate.Percent.Footnote","Number.of.Completed.Surveys.Footnote")
 
@@ -432,7 +426,6 @@ hcaphs_df_measures_distri <- hcaphs_df_measures[,zdistri_vars]
 - which meansures have NA scores?
 
 ```{r}
-levels(hcaphs_df_measures_distri$HCAHPS.Measure.ID)
 hcaphs_df_measures_distri[is.na(hcaphs_df_measures_distri$HCAHPS.Linear.Mean.Value),] %>% summary()
 ```
 - Eliminating the rows that have NA scores  1. too few cases to report, 2. Results are unavailable for the current reporting period 3. Data Specific to IQR and OQR
@@ -445,10 +438,84 @@ hcaphs_df_measures_distri <- hcaphs_df_measures_distri[is.na(hcaphs_df_measures_
 
 
 ```{r}
-hcaphs_df_final <- hcaphs_df_measures_distri %>% spread(key = HCAHPS.Measure.ID, value = HCAHPS.Linear.Mean.Value)
-summary(hcaphs_df_final)
-remove(hcaphs_df_measures,hcaphs_df_measures_distri)
+patient_exp_group <- hcaphs_df_measures_distri %>% spread(key = HCAHPS.Measure.ID, value = HCAHPS.Linear.Mean.Value)
+summary(patient_exp_group)
 ```
+```{r}
+n_vars <- ncol(patient_exp_group)
+
+pairs.panels(patient_exp_group[,2:n_vars],cex.labels = 0.7 ,cex.main = 0.7,main = "Relationship between measures")#,colors = rainbow(n_vars))
+
+```
+
+- merging the patient experience group dataframe with the master dataframe
+
+```{r}
+master_df  <- merge(x = safety_of_care_group,y = patient_exp_group,by = intersect(names(safety_of_care_group),names(patient_exp_group)),all = TRUE)
+head(master_df)
+```
+
+# Analysis of Timeliness and Effectiveness of Care Dataset
+
+```{r}
+time_and_eff_care_df <- read.csv(file = "ValidFiles/Timely and Effective Care - Hospital.csv",header = T,check.names = T,stringsAsFactors = T,na.strings = c("Not Available",""))
+str(time_and_eff_care_df)
+head(time_and_eff_care_df)
+```
+
+# cleaning the demographic variables
+
+```{r}
+zdemogrphic_vars <- which(names(time_and_eff_care_df) %in% zdemographics)
+time_and_eff_care_cleaned <- time_and_eff_care_df[,-zdemogrphic_vars]
+head(time_and_eff_care_cleaned)
+```
+
+```{r}
+summary(time_and_eff_care_cleaned)
+```
+
+* NA Imputation in the Score Variable
+* considering the Footnote leves: 1. Blank Levels 2.  "2 - Data submitted were based on a sample of cases/patients."
+* 
+
+```{r}
+time_and_eff_care_cleaned$Score <- as.integer(time_and_eff_care_cleaned$Score)
+time_and_eff_care_cleaned[!is.na(time_and_eff_care_cleaned$Score),] %>% summary()
+time_and_eff_care_cleaned[is.na(time_and_eff_care_cleaned$Score),] %>% View()
+
+time_and_eff_care_cleaned[,] %>%summary()
+time_and_eff_care_cleaned[is.na(time_and_eff_care_cleaned$Footnote),] %>% View
+
+```
+
+```{r}
+time_and_eff_care_imputed <- time_and_eff_care_cleaned[
+  is.na(time_and_eff_care_cleaned$Footnote) | (time_and_eff_care_cleaned$Footnote %in% c("2 - Data submitted were based on a sample of cases/patients.")),] 
+str(time_and_eff_care_imputed)
+time_and_eff_care_imputed %>% summary()
+
+```
+
+Subsetting the data by remove the NA from Samples
+
+```{r}
+# Rem
+time_and_eff_care_imputed <- time_and_eff_care_imputed[!is.na(time_and_eff_care_imputed$Sample),]
+summary(time_and_eff_care_imputed)
+str(time_and_eff_care_imputed)
+```
+
+
+```{r}
+# Samples Vs Score
+ggplot(time_and_eff_care_imputed, aes(Measure.ID,Score)) + geom_col() + 
+  labs(title = "Measure.ID Vs Scores") +
+  theme(axis.text.x = element_text(angle = 90,vjust = 0.5,hjust = 1),
+        plot.title = element_text(hjust = 0.5))
+  
+```
+
 
 
 <!-- ```{r} -->
