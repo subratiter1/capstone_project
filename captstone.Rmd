@@ -130,12 +130,7 @@ general_info_final <- general_info_cleaned[is.na(general_info_cleaned$Hospital.o
 summary(general_info_final)
 
 ```
-
-
-
-# Complications
-
-
+# Analysing the Complications dataset
 
 ```{r}
 complications_df <- read.csv(file = "ValidFiles//Complications - Hospital.csv",
@@ -226,7 +221,7 @@ library(psych)
 pairs.panels(x = complications_df_spread[2:ncol(complications_df_spread)],
              bg = rainbow(n = 12),
              smooth = TRUE,
-             ellipses = TRUE,pch = 21,cex.cor = 0.05
+             ellipses = TRUE,pch = 21,cex.cor = 0.05,cex.labels = 0.5
              )
 
 ```
@@ -236,7 +231,7 @@ pairs.panels(x = complications_df_spread[2:ncol(complications_df_spread)],
 
 
 ```{r}
-zvar1 <- which(names(complications_df_spread) %in% c("Provider.ID","PSI_90_SAFETY","COMP_HIP_KNEE"))
+zvar1 <- which(names(complications_df_spread) %in% c("Provider.ID","PSI_90_SAFETY","COMP_HIP_KNEE","PSI_4_SURG_COMP"))
 
 complications_df_final <- complications_df_spread[,zvar1]
 
@@ -341,8 +336,12 @@ ggplot(data = hai_df_cleaned,aes(x = Measure.ID,y = Score)) +
 
 ```{r}
 ggplot(data = hai_df_cleaned,aes(x = Measure.ID,y = Score)) + 
-  geom_col(position = position_stack(),na.rm = TRUE) + xlab("Measure.ID") +
-  theme(axis.text.x = element_text(angle = 90,vjust = 0.5,hjust = 1))
+  geom_col(position = position_stack(),na.rm = TRUE) + xlab("Measure.ID") + labs(title = "Hospital Associated Infections by Measure and Score") +
+  theme(axis.text.x = element_text(angle = 45,vjust = 1,hjust = 1))
+
+ggplot(data = hai_df_cleaned,aes(x = Measure.ID)) + 
+  geom_bar(position = position_stack(),na.rm = TRUE) + xlab("Measure.ID") + labs(title = "Hospital Associated Infections by Measure by Hospital Count") +
+  theme(axis.text.x = element_text(angle = 45,vjust = 1,hjust = 1))
 
 ```
 
@@ -491,13 +490,14 @@ time_and_eff_care_cleaned[is.na(time_and_eff_care_cleaned$Footnote),] %>% View
 
 ```{r}
 time_and_eff_care_imputed <- time_and_eff_care_cleaned[
-  is.na(time_and_eff_care_cleaned$Footnote) | (time_and_eff_care_cleaned$Footnote %in% c("2 - Data submitted were based on a sample of cases/patients.")),] 
+  is.na(time_and_eff_care_cleaned$Footnote) | (time_and_eff_care_cleaned$Footnote %in% c("2 - Data submitted were based on a sample of cases/patients."))
+  ,] 
 str(time_and_eff_care_imputed)
 time_and_eff_care_imputed %>% summary()
 
 ```
 
-Subsetting the data by remove the NA from Samples
+Subsetting the data by removing the NA from Samples
 
 ```{r}
 # Rem
@@ -507,14 +507,232 @@ str(time_and_eff_care_imputed)
 ```
 
 
+
 ```{r}
 # Samples Vs Score
 ggplot(time_and_eff_care_imputed, aes(Measure.ID,Score)) + geom_col() + 
   labs(title = "Measure.ID Vs Scores") +
+  theme(axis.text.x = element_text(angle = 60,vjust = 1,hjust = 1),
+        plot.title = element_text(hjust = 0.5))
+```
+
+```{r}
+ggplot(time_and_eff_care_imputed, aes(Measure.ID)) + geom_bar() + 
+  labs(title = "Measure.ID Vs Count of Providers") +
   theme(axis.text.x = element_text(angle = 90,vjust = 0.5,hjust = 1),
         plot.title = element_text(hjust = 0.5))
-  
 ```
+
+* Measures that do not contribute less to the overall score and that are have lesser providers ids are eliminated from the analysis
+Grouping the Effectiveness Measures and Timeliness Measures:
+- Timeliness Group: ED_1b,ED_2b,OP_18b, OP_3, OP_5, OP_20,OP_21
+- Effectiveness Group: CAC_3,IMM_2,IMM_3_OP_27_FAC_ADHPCT,OP_22,OP_23,OP_29,OP_30,OP_4,PC_01,STK_1, STK_4, STK_6,STK_8,VTE_1,VTE_2,VTE_3,VTE_5, VTE_6
+
+# Separating the the measure variables needed for analysis
+
+```{r}
+
+zvar1 <-  which(names(time_and_eff_care_imputed) %in% c("Provider.ID","Measure.ID","Score"))
+
+timeliness_group <- time_and_eff_care_imputed[,zvar1] %>% spread(key = Measure.ID,value = Score)
+head(timeliness_group)
+
+zvar1 <- which(names(timeliness_group) %in% c("Provider.ID","ED_1b","ED_2b","OP_18b", "OP_3b", "OP_5", "OP_20","OP_21"))
+zvar2 <- which(names(timeliness_group) %in% c("Provider.ID","CAC_3","IMM_2","IMM_3_OP_27_FAC_ADHPCT","OP_22","OP_23","OP_29","OP_30","OP_4","PC_01","STK_1", "STK_4", "STK_6","STK_8","VTE_1","VTE_2","VTE_3","VTE_5", "VTE_6"))
+
+effectiveness_group <- timeliness_group[,zvar2]
+timeliness_group <- timeliness_group[,zvar1]
+
+```
+
+* check the correlation between the measure variables
+
+```{r}
+pairs.panels(x = timeliness_group[2:length(zvar1)],cex.cor = 0.5,cex.labels = 0.9,ellipses = TRUE,pch = 21,bg = rainbow(length(zvar1)))
+```
+- most of the measure variables of timeliness group are uncorrelated.
+- ED_1B and ED_2B are the inversely correlated to some extent as the timespent in the emergency room is the common between them. They are inversely correlated as the doctors visit reduces the time spend by the patient before moving to ED to inpatient room is reduced.
+
+```{r}
+zvar1 <- which(names(effectiveness_group) %in% "IMM_3_OP_27_FAC_ADHPCT")
+names(effectiveness_group)[zvar1] <- "IMM_3_OP_27"
+
+```
+
+```{r}
+cor.plot(effectiveness_group[,-1],
+        stars = FALSE,numbers = TRUE,colors = TRUE,cex = 0.5, show.legend = FALSE,
+         xlas = 2,cex.axis = 0.6,main = "Effectiveness group measure correlation")
+
+```
+- Variables represented about have small degree of correlation
+
+- Merging the timliness group and effectiveness group with master dataframe
+
+```{r}
+# merging master dataframe with timliness group
+master_df <- merge(x = master_df,y = timeliness_group,by = intersect(names(master_df),names(timeliness_group)),all = TRUE)
+
+# merging master dataframe with effectiveness group
+master_df <- merge(x = master_df,y = effectiveness_group,by = intersect(names(master_df),names(effectiveness_group)),all = TRUE)
+summary(master_df)
+```
+
+# Analysing the Readmission and Mortality groups
+
+```{r}
+readm_mort_df <- read.csv(file = "ValidFiles/Readmissions and Deaths - Hospital.csv",check.names = T,header = T,stringsAsFactors = T,na.strings = c("Not Available",""))
+head(readm_mort_df)
+```
+
+* Purging the demographic variables not needed in the analysis 
+
+```{r}
+zdemogrphic_vars <- which(names(readm_mort_df) %in% zdemographics)
+readm_mort_cleaned <- readm_mort_df[,-zdemogrphic_vars]
+head(readm_mort_cleaned)
+```
+
+* Analysing the footnote variable
+
+```{r}
+summary(readm_mort_cleaned)
+
+```
+### Imputing the NAs
+
+* Considering the Footnote variable as the reference variable. Assuming that the
+
+ 1 - The number of cases/patients is too few to report.
+19 - Data are shown only for hospitals that participate in the Inpatient Quality Reporting (IQR) and Outpatient Quality Reporting (OQR) programs.
+ 4 - Data suppressed by CMS for one or more quarters.  
+ 5 - Results are not available for this reporting period.
+ 7 - No cases met the criteria for this measure.
+
+```{r}
+readm_mort_cleaned[is.na(readm_mort_cleaned$Footnote),] %>% summary()
+#imputing the rows that are as a reslut of stale data from different levels of footnotes
+readm_mort_cleaned <- readm_mort_cleaned[is.na(readm_mort_cleaned$Footnote),]
+```
+
+
+```{r}
+ggplot(readm_mort_cleaned,aes(Measure.ID,Score)) + geom_col() + 
+  labs(title = "Mortality Readmission Rate Score") + ylab(label = "Provider Count") + 
+  theme(axis.text.x = element_text(angle = 45,vjust = 1,hjust = 1),
+        plot.title = element_text(hjust = 0.5)) 
+```
+
+```{r}
+ggplot(readm_mort_cleaned,aes(Measure.ID)) + geom_bar() + labs(title = "Mortality Readmission Rate Count by Providers") + ylab(label = "Provider Count") +
+  theme(axis.text.x = element_text(angle = 45,vjust = 1,hjust = 1),
+        plot.title = element_text(hjust = 0.5)) 
+```
+
+
+
+```{r}
+levels(readm_mort_cleaned$Measure.ID)
+zvar1 <- which(names(readm_mort_cleaned) %in% c("Provider.ID","Measure.ID","Score"))
+readm_mort_final <- readm_mort_cleaned[,zvar1] %>% spread(key = Measure.ID,value = Score)
+```
+
+# Separating the mortality measure and readmission measure
+
+```{r}
+zvar1 <- which(names(readm_mort_final) %in% c("Provider.ID","MORT_30_AMI","MORT_30_CABG","MORT_30_COPD","MORT_30_HF","MORT_30_PN","MORT_30_STK"))
+mortality_grp <- readm_mort_final[,zvar1]
+zvar1 <- which(names(readm_mort_final) %in% c("MORT_30_AMI","MORT_30_CABG","MORT_30_COPD","MORT_30_HF","MORT_30_PN","MORT_30_STK"))
+readmission_grp <- readm_mort_final[,-zvar1]
+```
+
+# Checking the correlation between different measures
+
+```{r}
+cor.plot(mortality_grp[,-1],cex.axis = 0.6, numbers = TRUE,cex = 0.7,stars = FALSE,show.legend = F,xlas = 2, main = "Mortality Group Correlation Plot")
+```
+
+```{r}
+cor.plot(readmission_grp[,-1],cex.axis = 0.6, numbers = TRUE,cex = 0.7,stars = FALSE,show.legend = F,xlas = 2, main = "Readmission Group Correlation Plot")
+pairs.panels(readmission_grp[,-1],scale = TRUE,ellipses = TRUE,pch = 21,bg = rainbow(n = ncol(readmission_grp)),cex.labels = 0.7)
+```
+
+* All varaibles in the dataset are significant and thus are being retained into the final 
+* Two variables that are significant are significant correlated 
++ 1. Readmission_Hospital_Wide and Readm_PN death rate, 
++ 2. Readmission-after discharge and Heart Failure
++ 3. Readmission after discharge and COPD
+
+ailments are significantly correlated.
+
+* Combining the mortality and readmission group with the master dataframe.
+
+```{r}
+master_df <- merge(x = master_df,y = readm_mort_final,by = intersect(x = names(master_df),y = names(readm_mort_final)),all = TRUE)
+dim(master_df)
+```
+
+
+# Analysis of Imaging dataset
+
+```{r}
+op_imaging_eff_df <- read.csv(file = "ValidFiles/Outpatient Imaging Efficiency - Hospital.csv",header = T,check.names = T,na.strings = c("Not Available",""),stringsAsFactors = T)
+head(op_imaging_eff_df)
+
+```
+
+# Purging the variables that no useful for analysis
+
+```{r}
+zdemogrphic_vars <- which(names(op_imaging_eff_df) %in% zdemographics)
+op_imaging_eff_cleaned <- op_imaging_eff_df[,-zdemogrphic_vars]
+head(op_imaging_eff_cleaned)
+```
+
+```{r}
+summary(op_imaging_eff_cleaned)
+```
+
+* which measures Scores have NAs? 
+In order to check the NAs, Footnote is taken as reference to validate the NAs
+
+```{r}
+op_imaging_eff_cleaned[is.na(op_imaging_eff_cleaned$Footnote),] %>% summary()
+op_imaging_eff_cleaned[!is.na(op_imaging_eff_cleaned$Score),] %>% summary()
+
+op_imaging_eff_cleaned <- op_imaging_eff_cleaned[is.na(op_imaging_eff_cleaned$Footnote),] 
+```
+*  from the summary we can infer that most of the NAs in the score are induced by Stale data identified from different classess of Footnotes
+
+```{r}
+ggplot(op_imaging_eff_cleaned,aes(Measure.ID)) + geom_bar() + labs(title = "Count of Providers Vs Imaging Efficiency measures") + 
+  theme(plot.title = element_text(hjust = 0.5))
+  
+ggplot(op_imaging_eff_cleaned,aes(Measure.ID, mean(Score))) + geom_col() + labs(title = "Count of Providers Vs Imaging Efficiency measures") + 
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+# Considering the imaging parameters OP_8,OP_10,OP_11,OP_13,OP_14
+
+```{r}
+zvar1 <- c("Provider.ID","Measure.ID","Score")
+zvar2 <- which(names(op_imaging_eff_cleaned) %in% zvar1)
+op_imaging_eff_final <- op_imaging_eff_cleaned[,zvar2] %>% spread(key = Measure.ID,value = Score)
+
+# dropping the less singificant OP_9 measure
+op_imaging_eff_final <- op_imaging_eff_final[,-ncol(op_imaging_eff_final)]
+head(op_imaging_eff_final)
+```
+* Checking the variability
+
+* Merging the imaging the dataframe with Master_dataframe
+
+```{r}
+master_df <- merge(x = master_df,y = op_imaging_eff_final,by = intersect(x = names(master_df),y = names(op_imaging_eff_final)),all = TRUE) %>% head()
+dim(master_df)
+```
+
 
 
 
