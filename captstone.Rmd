@@ -22,29 +22,31 @@ library(tidyverse)
 ```{r capstone}
 general_info <- read.csv(file = "ValidFiles/Hospital General Information.csv",header = T,check.names = T,na.strings = c("Not Available",""),
                          stringsAsFactors = T)
-head(general_info)
+str(general_info) 
 ```
 
 ```{r}
-str(general_info)
 summary(general_info)
 ```
 
-* This analysis is being run for Acute Care Hospitals. But the dataset contains the Acute care, Childrens, and Critical Access Hosptials. Hence filtering out all the acute care hosptials from the General Information dataset
+* This analysis is being run for Acute Care Hospitals. 
+* But the dataset contains the Acute care, Childrens, and Critical Access Hosptials. Hence filtering out all the acute care hosptials from the General Information dataset
 
 
 ```{r}
 unique(general_info$Hospital.Type)
 ```
-
-
 #### filtering the acute care hospitals, removing the columns not needed for analysis
 
 ```{r}
 zdemographics <- c("Hospital.Name","Address","City","State","County.Name","Phone.Number","ZIP.Code")
+
+zvar1 <- c("Hospital.Type","Hospital.Ownership","Emergency.Services","Meets.criteria.for.meaningful.use.of.EHRs")
+zvar2 <- which(names(general_info) %in% zvar1)
+
 general_info_cleaned <- general_info[,-which(names(general_info) %in% zdemographics)]
-general_info_cleaned <-  general_info_cleaned[general_info_cleaned$Hospital.Type %in% "Acute Care Hospitals",-which(names(general_info_cleaned) %in% c("Hospital.Type","Hospital.Ownership","Emergency.Services","Meets.criteria.for.meaningful.use.of.EHRs"))]
-str(general_info_cleaned)
+#general_info_cleaned <-  general_info_cleaned[general_info_cleaned$Hospital.Type %in% "Acute Care Hospitals",- zvar2]
+general_info_cleaned <-  general_info_cleaned[,-zvar2]
 summary(general_info_cleaned)
 ```
 # Check if the NAs in the Ratings are missing at Random in the Footnote
@@ -54,7 +56,6 @@ general_info_cleaned$Hospital.overall.rating <- as.factor(general_info_cleaned$H
 str(general_info_cleaned)
 
 ```
-
 
 * footnote with: "Data are shown only for hospitals that participate in the Inpatient Quality Reporting (IQR) and Outpatient Quality Reporting (OQR) programs" is inducing the NAs across the dataset, 
 * As the IQR and OQR information is partly available. This enables us to conclude that the provider ids related this level can be purged from the dataset
@@ -98,7 +99,6 @@ barplot(prop.table(table(general_info_cleaned$Hospital.overall.rating)))
   - "Results are not available for this reporting period"
 
 
-
 ```{r}
 general_info_cleaned %>% 
   filter(general_info_cleaned$Hospital.overall.rating.footnote %in% 
@@ -126,9 +126,8 @@ summary(general_info_cleaned)
 ```{r}
 z_rem_var1 <- which(names(general_info_cleaned) %in% c("Provider.ID","Hospital.overall.rating"))
 general_info_final <- general_info_cleaned[is.na(general_info_cleaned$Hospital.overall.rating.footnote),z_rem_var1]
-
 summary(general_info_final)
-
+dim(general_info_final)
 ```
 # Analysing the Complications dataset
 
@@ -136,7 +135,6 @@ summary(general_info_final)
 complications_df <- read.csv(file = "ValidFiles//Complications - Hospital.csv",
                              header = T,check.names = T,stringsAsFactors = T,na.strings = c('Not Available',""))
 head(complications_df)
-
 ```
 
 * Cleaning the demographic variables that do not have an impact on the Measure IDs
@@ -147,7 +145,6 @@ zdemographics <- c("Hospital.Name","Address","City","State","ZIP.Code","County.N
 zdemogrphic_vars <- which(names(complications_df) %in% zdemographics)
 complications_df_cleaned <- complications_df[,-zdemogrphic_vars]
 head(complications_df_cleaned)
-
 ```
 - Measuring the distribution of NAs in the Complications dataset, Compared to National, and Footnote variables.
 - About 35% of the NAs in Compared to National, and 41% of the records in footnote is stale due to reasons specified in the variable.
@@ -157,6 +154,7 @@ round(prop.table(summary(factor(complications_df_cleaned$Compared.to.National)))
 round(prop.table(summary(factor(complications_df_cleaned$Footnote)))*100,2)  #- NAs are 65% in the Footnote variable 
 ```
 
+### imputation of NAs in Complications dataset
 - Analysis of "footnote" variable by checking the impact on the score variable
 
 ```{r}
@@ -166,20 +164,19 @@ complications_df_cleaned %>% group_by(Footnote) %>%
 
 ```
 
-- Footnote Variable: Footnote levels which have specific reasons do not contribute to score variable for the specific Provided.ID, these rows can be removed from analysis.
+- Footnote Variable: Footnote levels which have specific reasons do not contribute to score variable for the specific Provided.ID,
+these rows can be imputed from analysis.
 
 ```{r}
 zvar1 <- is.na(complications_df$Footnote) # Blank Footnotes
 zvar2 <- which(names(complications_df_cleaned) %in% "Footnote")
 complications_df_cleaned_footnote_nas <- complications_df_cleaned[zvar1,-zvar2]
-str(complications_df_cleaned_footnote_nas)
+
 summary(complications_df_cleaned_footnote_nas)
 ```
 - Imputing the "NAs" resulted in inducing the variability in each of the variables. 
 
-- Analysing the Denominator (Total Number of Admissions) variable for the reason behind the NAs.
-
-# which variable is contributing most NAs  in "Denominator" variable?
+# which variable is contributing most NAs  in "Score" variable?
 
 ```{r}
 library(reshape2)
@@ -194,9 +191,7 @@ complications_df_cleaned_footnote_nas %>% group_by(Measure.ID) %>%
 complications_df_cleaned_footnote_nas[is.na(complications_df_cleaned_footnote_nas$Denominator),] %>% summary()
 
 ```
-- NAs in the Denominator (Total number of people admitted to hospital is unknown) is due to "Serious complications/ PSI_90_Safety". Lower estimate, Higher Estimate, Scores have even distribution. Removing this data wouldn't impact the overall ddistribution of the data
 
-- Since the Denominator is not a signficiaant variabel for analysis, there is no impact on the analysis NAs in Denomintor variable move on.
 - Significant Measures from these measure Ids are "PSI_90_SAFETY","PSI_4_SURG_COMP" "COMP_HIP_KNEE" is the other significant measure
 
 - rejecting the Denominoator, Lower Estimate, Higher Estimate, Compared.to.National variables
@@ -207,28 +202,23 @@ complications_df_cleaned_footnote_nas[is.na(complications_df_cleaned_footnote_na
 zvar1 <- c( "Provider.ID", "Measure.ID", "Score")
 zvar2 <- which(names(complications_df_cleaned_footnote_nas) %in% zvar1)
 
-complications_df_final <-  complications_df_cleaned_footnote_nas[,zvar2]
+complications_df_final <-  complications_df_cleaned_footnote_nas[,zvar2] %>%  spread(key = Measure.ID,value = Score)
 summary(complications_df_final)
 
-# spread the Mesure.IDs.
-complications_df_spread <- spread(data = complications_df_final,key = Measure.ID,value = Score)
-dim(complications_df_spread)
-summary(complications_df_spread)
 ```
 
 ```{r}
 library(psych)
-pairs.panels(x = complications_df_spread[2:ncol(complications_df_spread)],
+pairs.panels(x = complications_df_final[2:ncol(complications_df_final)],
              bg = rainbow(n = 12),
              smooth = TRUE,
-             ellipses = TRUE,pch = 21,cex.cor = 0.05,cex.labels = 0.5
-             )
+             ellipses = TRUE,pch = 21,cex.cor = 0.05,cex.labels = 0.5)
+cor.plot(complications_df_final[,-1],numbers = T,show.legend = F,cex = 0.7,xlas = 2,cex.axis = 0.7)
 
 ```
 
-- Some of the variabels are very variability for example, "PSI_90_SAFETY","COMP_HIP_KNEE" exhibit high variability compared to other measures. 
+- Some of the variables exhibit that high variability compared to other measures are for example, "PSI_90_SAFETY","COMP_HIP_KNEE", "PSI_4_SURG_COMP" 
 - Considering the signficant variable measures from these Complications Dataset
-
 
 ```{r}
 zvar1 <- which(names(complications_df_spread) %in% c("Provider.ID","PSI_90_SAFETY","COMP_HIP_KNEE","PSI_4_SURG_COMP"))
@@ -245,11 +235,6 @@ str(complications_df_final)
 hai_df <- read.csv(file = "~/Google Drive/_OneDrive_Atimi_Software/Upgrad/_Upgrad/Capstone_project/capstone_project/ValidFiles/Healthcare Associated Infections - Hospital.csv",na.strings = c("Not Available",""))
 head(hai_df)
 ```
-
-```{r}
-str(hai_df)
-```
-
 
 ```{r}
 summary(hai_df)
@@ -305,8 +290,7 @@ hai_df %>% group_by(Measure.Name,Measure.ID) %>% summarise(cnt_rws = n())
 
 - CAUTI -Catheter Associated Urinary Tract Infections: A urinary tract infection (UTI) is an infection involving any part of the urinary system, including urethra, bladder, ureters, and kidney. UTIs are the most common type of healthcare-associated infection reported to the National Healthcare Safety Network (NHSN).  Among UTIs acquired in the hospital, approximately 75% are associated with a urinary catheter, which is a tube inserted into the bladder through the urethra to drain urine.  Between 15-25% of hospitalized patients receive urinary catheters during their hospital stay.  The most important risk factor for developing a catheter-associated UTI (CAUTI) is prolonged use of the urinary catheter.  Therefore, catheters should only be used for appropriate indications and should be removed as soon as they are no longer needed.
 
-
-- Considering the SIRs, that Centre for Diesease Control and Prevention uses to calculate. Standard Infection Ratio (SIR) which takes into account patient care location, number of patients with an exisiting infection, lab mehtords, bed size, afficialiton with a medical schools, bed size of the hospital, age of patients.
+- Considering the SIRs, that Centre for Diesease Control and Prevention uses to calculate, Standard Infection Ratio (SIR) which takes into account patient care location, number of patients with an exisiting infection, lab mehtords, bed size, afficialiton with a medical schools, bed size of the hospital, age of patients.
 
 - central line-associated bloodstream infections (CLABSI), catheter- associated urinary tract infections (CAUTI), surgical site infection (SSI) from colon surgery or abdominal hysterectomy, methicillin-resistant Staphylococcus Aureus (MRSA) blood laboratory-identified events (bloodstream infections), and Clostridium difficile (C.diff.) laboratory-identified events (intestinal infections). The HAI measures show how often patients in a particular hospital contract certain infections during the couse of their medical treatment
 
@@ -345,13 +329,7 @@ ggplot(data = hai_df_cleaned,aes(x = Measure.ID)) +
 
 ```
 
-
-
-```{r}
-summary(hai_df_cleaned)
-```
-
-- selecting the required columns for analysis
+- selecting the required measures for analysis
 
 ```{r}
 zvar1 <- c( "Provider.ID", "Measure.ID", "Score")
@@ -370,11 +348,7 @@ gen_inf_compli_df <- merge(x = general_info_final,y = complications_df_final,all
 safety_of_care_group <- merge(x = gen_inf_compli_df,y = hai_df_final,all = TRUE,by = intersect(x = names(gen_inf_compli_df),y = names(hai_df_final)))
 
 head(safety_of_care_group)
-
-
 ```
-
-
 
 # ANALYSIS OF HCAPHS SURVEY
 
@@ -383,23 +357,20 @@ hcaphs_df <- read.csv(file = "ValidFiles/HCAHPS - Hospital.csv",header = TRUE,ch
 head(hcaphs_df)
 ```
 
-
 # removing the demographic columns, Mesaure Start Date and measure end data columns
 
 ```{r}
 zdemographics
 hcaphs_df_cleaned <- hcaphs_df[,-which(names(hcaphs_df) %in% zdemographics)]
+head(hcaphs_df_cleaned)
 ```
 
-- Extracting the Measure IDs of importance are:
+- Extracting the Measure IDs that are of importance are:
 
 H_COMP_1_LINEAR_SCORE, H_COMP_2_LINEAR_SCORE, H_COMP_3_LINEAR_SCORE, H_COMP_4_LINEAR_SCORE, H_COMP_5_LINEAR_SCORE, 
 H_COMP_6_LINEAR_SCORE, H_COMP_7_LINEAR_SCORE, H_HSP_RATING_LINEAR_SCORE, H_QUIET_LINEAR_SCORE,H_RECMND_LINEAR_SCORE, H_CLEAN_LINEAR_SCORE, 
 
 H_COMP_1, H_COMP_2, H_COMP_3, H_COMP_4, H_COMP_5, H_COMP_6, H_COMP_7, H_HSP_RATING, H_QUIET,H_RECMND, H_CLEAN_HSP
-
-* selecting the above measures from the 
-
 
 * selecting the required measures
 ```{r}
@@ -420,34 +391,42 @@ zdistri_vars <- c("Provider.ID","HCAHPS.Measure.ID","HCAHPS.Linear.Mean.Value","
                   "Survey.Response.Rate.Percent.Footnote","Number.of.Completed.Surveys.Footnote")
 
 hcaphs_df_measures_distri <- hcaphs_df_measures[,zdistri_vars] 
+hcaphs_df_measures_distri[is.na(hcaphs_df_measures_distri$HCAHPS.Linear.Mean.Value),] %>% summary()
 ```
 
 - which meansures have NA scores?
 
-```{r}
-hcaphs_df_measures_distri[is.na(hcaphs_df_measures_distri$HCAHPS.Linear.Mean.Value),] %>% summary()
-```
 - Eliminating the rows that have NA scores  1. too few cases to report, 2. Results are unavailable for the current reporting period 3. Data Specific to IQR and OQR
 
 ```{r}
 hcaphs_df_measures_distri[is.na(hcaphs_df_measures_distri$Survey.Response.Rate.Percent.Footnote),] %>% summary()
 hcaphs_df_measures_distri <- hcaphs_df_measures_distri[is.na(hcaphs_df_measures_distri$Survey.Response.Rate.Percent.Footnote),c(1,2,3)]
-
 ```
 
+* creating the patient experience group spreading the measure ids
 
 ```{r}
 patient_exp_group <- hcaphs_df_measures_distri %>% spread(key = HCAHPS.Measure.ID, value = HCAHPS.Linear.Mean.Value)
 summary(patient_exp_group)
 ```
 ```{r}
-n_vars <- ncol(patient_exp_group)
-
-pairs.panels(patient_exp_group[,2:n_vars],cex.labels = 0.7 ,cex.main = 0.7,main = "Relationship between measures")#,colors = rainbow(n_vars))
-
+pairs.panels(patient_exp_group[,-1],cex.labels = 0.6 ,cex.cor = 0.7,main = "Relationship between measures")
 ```
 
-- merging the patient experience group dataframe with the master dataframe
+- Patient experience measures are uniformly distributed about their mean
+   +  Cleanliness of Hospital Environment (Q8)  - H_Clean_HSP
+   +  Nurse Communication (Q1, Q2, Q3)          - H_COMP_1
+   +  Doctor Communication (Q5, Q6, Q7)         _ H_COMP_2
+   +  Responsiveness of Hospital Staff (Q4, Q11)- H_COMP_3 
+   +  Pain management (Q13, Q14)                - H_COMP_4
+   +  Communication About Medicines (Q16, Q17)  - H_COMP_5
+   +  Discharge Information (Q19, Q20)          - H_COMP_6
+   +  Overall Rating of Hospital (Q21)          - H_OVERALL_RATING
+   +  Quietness of Hospital Environment (Q9)    - H_QUIET_HSP
+   +  Willingness to Recommend Hospital (Q22)   - H_RECMND
+   +  HCAHPS 3 Item Care Transition Measure (CTM-3) - - H_COMP_7 
+
+- Merging the patient experience group dataframe with the master dataframe
 
 ```{r}
 master_df  <- merge(x = safety_of_care_group,y = patient_exp_group,by = intersect(names(safety_of_care_group),names(patient_exp_group)),all = TRUE)
@@ -462,7 +441,7 @@ str(time_and_eff_care_df)
 head(time_and_eff_care_df)
 ```
 
-# cleaning the demographic variables
+# cleaning the demographic variables from the dataset
 
 ```{r}
 zdemogrphic_vars <- which(names(time_and_eff_care_df) %in% zdemographics)
@@ -475,39 +454,35 @@ summary(time_and_eff_care_cleaned)
 ```
 
 * NA Imputation in the Score Variable
-* considering the Footnote leves: 1. Blank Levels 2.  "2 - Data submitted were based on a sample of cases/patients."
-* 
+* considering the Footnote levels as a reference to impute the NAs, the levels below satisfy the non-stale data category.
+ + 1. Blank Levels (NA) 2.  "2 - Data submitted were based on a sample of cases/patients."
+
+```{r}
+time_and_eff_care_cleaned %>% group_by(Footnote) %>% tally(sort = T)
+```
+
 
 ```{r}
 time_and_eff_care_cleaned$Score <- as.integer(time_and_eff_care_cleaned$Score)
-time_and_eff_care_cleaned[!is.na(time_and_eff_care_cleaned$Score),] %>% summary()
-time_and_eff_care_cleaned[is.na(time_and_eff_care_cleaned$Score),] %>% View()
-
-time_and_eff_care_cleaned[,] %>%summary()
-time_and_eff_care_cleaned[is.na(time_and_eff_care_cleaned$Footnote),] %>% View
+time_and_eff_care_cleaned[is.na(time_and_eff_care_cleaned$Footnote),] %>% head()
 
 ```
 
 ```{r}
 time_and_eff_care_imputed <- time_and_eff_care_cleaned[
-  is.na(time_and_eff_care_cleaned$Footnote) | (time_and_eff_care_cleaned$Footnote %in% c("2 - Data submitted were based on a sample of cases/patients."))
-  ,] 
+  is.na(time_and_eff_care_cleaned$Footnote) | (time_and_eff_care_cleaned$Footnote %in% c("2 - Data submitted were based on a sample of cases/patients.")),] 
 str(time_and_eff_care_imputed)
 time_and_eff_care_imputed %>% summary()
-
 ```
 
-Subsetting the data by removing the NA from Samples
+* Subsetting the data by removing the NA from Samples
 
 ```{r}
-# Rem
 time_and_eff_care_imputed <- time_and_eff_care_imputed[!is.na(time_and_eff_care_imputed$Sample),]
 summary(time_and_eff_care_imputed)
-str(time_and_eff_care_imputed)
 ```
 
-
-
+- Performing the validation checks after imputing the NAs in the dataset
 ```{r}
 # Samples Vs Score
 ggplot(time_and_eff_care_imputed, aes(Measure.ID,Score)) + geom_col() + 
@@ -523,19 +498,44 @@ ggplot(time_and_eff_care_imputed, aes(Measure.ID)) + geom_bar() +
         plot.title = element_text(hjust = 0.5))
 ```
 
-* Measures that do not contribute less to the overall score and that are have lesser providers ids are eliminated from the analysis
+* Measures that contribute lessser to the overall score and that are have lesser providers ids are eliminated from the analysis
 Grouping the Effectiveness Measures and Timeliness Measures:
-- Timeliness Group: ED_1b,ED_2b,OP_18b, OP_3, OP_5, OP_20,OP_21
-- Effectiveness Group: CAC_3,IMM_2,IMM_3_OP_27_FAC_ADHPCT,OP_22,OP_23,OP_29,OP_30,OP_4,PC_01,STK_1, STK_4, STK_6,STK_8,VTE_1,VTE_2,VTE_3,VTE_5, VTE_6
+- *Timeliness Group*: ED_1b,ED_2b,OP_18b, OP_3, OP_5, OP_20,OP_21
+ED-1b 	Median Time from ED Arrival to ED Departure for Admitted ED Patients 
+ED-2b 	Admit Decision Time to ED Departure Time for Admitted Patients 
+OP-3  	Median Time to Transfer to Another Facility for Acute Coronary Intervention 
+OP-5 	  Median Time to ECG 
+OP-18b 	Median Time from ED Arrival to ED Departure for Discharged ED Patients 
+OP-20 	Door to Diagnostic Evaluation by a Qualified Medical Professional 
+OP-21 	ED-Median Time to Pain Management for Long Bone Fracture 
 
-# Separating the the measure variables needed for analysis
+- *Effectiveness Group*: CAC_3,IMM_2,IMM_3_OP_27_FAC_ADHPCT,OP_22,OP_23,OP_29,OP_30,OP_4,PC_01,STK_1, STK_4, STK_6,STK_8,VTE_1,VTE_2,VTE_3,VTE_5, VTE_6
+CAC-3 	Home Management Plan of Care (HMPC) Document Given to Patient/Caregiver 
+IMM-2 	Influenza Immunization 
+IMM-3/OP-27 	Healthcare Personnel Influenza Vaccination 
+OP-4 	  Aspirin at Arrival 
+OP-22 	ED-Patient Left Without Being Seen 
+OP-23 	ED-Head CT or MRI Scan Results for Acute Ischemic Stroke or Hemorrhagic Stroke who Received Head CT or MRI Scan Interpretation Within 45 Minutes of Arrival 
+OP-29 	Endoscopy/Polyp Surveillance: Appropriate Follow-Up Interval for Normal Colonoscopy in Average Risk Patients 
+OP-30 	Endoscopy/Polyp Surveillance: Colonoscopy Interval for Patients with a History of Adenomatous Polyps – Avoidance of Inappropriate Use 
+PC-01 	Elective Delivery Prior to 39 Completed Weeks Gestation: Percentage of Babies Electively Delivered Prior to 39 Completed Weeks Gestation 
+STK-1 	Venous Thromboembolism (VTE) Prophylaxis 
+STK-4 	Thrombolytic Therapy 
+STK-6 	Discharged on Statin Medication 
+STK-8 	Stroke Education 
+VTE-3 	Venous Thromboembolism Patients with Anticoagulation Overlap Therapy 
+VTE-1 	Venous Thromboembolism Prophylaxis 
+VTE-2 	Intensive Care Unit Venous Thromboembolism Prophylaxis 
+VTE-5 	Venous Thromboembolism Warfarin Therapy Discharge Instructions 
+VTE-6 	Hospital Acquired Potentially-Preventable Venous Thromboembolism 
+
+* Separating the the measure variables needed for analysis
 
 ```{r}
 
 zvar1 <-  which(names(time_and_eff_care_imputed) %in% c("Provider.ID","Measure.ID","Score"))
 
 timeliness_group <- time_and_eff_care_imputed[,zvar1] %>% spread(key = Measure.ID,value = Score)
-head(timeliness_group)
 
 zvar1 <- which(names(timeliness_group) %in% c("Provider.ID","ED_1b","ED_2b","OP_18b", "OP_3b", "OP_5", "OP_20","OP_21"))
 zvar2 <- which(names(timeliness_group) %in% c("Provider.ID","CAC_3","IMM_2","IMM_3_OP_27_FAC_ADHPCT","OP_22","OP_23","OP_29","OP_30","OP_4","PC_01","STK_1", "STK_4", "STK_6","STK_8","VTE_1","VTE_2","VTE_3","VTE_5", "VTE_6"))
@@ -543,12 +543,13 @@ zvar2 <- which(names(timeliness_group) %in% c("Provider.ID","CAC_3","IMM_2","IMM
 effectiveness_group <- timeliness_group[,zvar2]
 timeliness_group <- timeliness_group[,zvar1]
 
+
 ```
 
 * check the correlation between the measure variables
 
 ```{r}
-pairs.panels(x = timeliness_group[2:length(zvar1)],cex.cor = 0.5,cex.labels = 0.9,ellipses = TRUE,pch = 21,bg = rainbow(length(zvar1)))
+pairs.panels(x = timeliness_group[2:length(zvar1)],cex.cor = 0.5,cex.labels = 0.9,ellipses = TRUE,pch = 21,bg = rainbow(length(zvar1)), main = "Timeliness Group variable correlation" )
 ```
 - most of the measure variables of timeliness group are uncorrelated.
 - ED_1B and ED_2B are the inversely correlated to some extent as the timespent in the emergency room is the common between them. They are inversely correlated as the doctors visit reduces the time spend by the patient before moving to ED to inpatient room is reduced.
@@ -565,7 +566,7 @@ cor.plot(effectiveness_group[,-1],
          xlas = 2,cex.axis = 0.6,main = "Effectiveness group measure correlation")
 
 ```
-- Variables represented about have small degree of correlation
+- Variables represented by the effectiveness group have small degree of correlation
 
 - Merging the timliness group and effectiveness group with master dataframe
 
@@ -588,7 +589,7 @@ head(readm_mort_df)
 * Purging the demographic variables not needed in the analysis 
 
 ```{r}
-zdemogrphic_vars <- which(names(readm_mort_df) %in% zdemographics)
+zdemogrphic_vars <- which(names(readm_mort_df) %in% c(zdemographics,"Measure.Name","Compared.to.National"))
 readm_mort_cleaned <- readm_mort_df[,-zdemogrphic_vars]
 head(readm_mort_cleaned)
 ```
@@ -601,7 +602,7 @@ summary(readm_mort_cleaned)
 ```
 ### Imputing the NAs
 
-* Considering the Footnote variable as the reference variable. Assuming that the
+* Considering the Footnote variable as the reference variable. Assuming that the levels specified below encapsulate the NAs in the dataset. A summary rollover on the dataset breifs the situation that below levels holds NAs
 
  1 - The number of cases/patients is too few to report.
 19 - Data are shown only for hospitals that participate in the Inpatient Quality Reporting (IQR) and Outpatient Quality Reporting (OQR) programs.
@@ -609,9 +610,13 @@ summary(readm_mort_cleaned)
  5 - Results are not available for this reporting period.
  7 - No cases met the criteria for this measure.
 
+
 ```{r}
-readm_mort_cleaned[is.na(readm_mort_cleaned$Footnote),] %>% summary()
-#imputing the rows that are as a reslut of stale data from different levels of footnotes
+readm_mort_cleaned[!is.na(readm_mort_cleaned$Footnote),] %>% group_by(Footnote) %>% summarise(cnt_rows = n(),avg_score = mean(Score))
+```
+
+* imputing the rows that are as a reslut of stale data from different levels of footnotes
+```{r}
 readm_mort_cleaned <- readm_mort_cleaned[is.na(readm_mort_cleaned$Footnote),]
 ```
 
@@ -623,13 +628,32 @@ ggplot(readm_mort_cleaned,aes(Measure.ID,Score)) + geom_col() +
         plot.title = element_text(hjust = 0.5)) 
 ```
 
+* Plotting the Measure variables
+
 ```{r}
 ggplot(readm_mort_cleaned,aes(Measure.ID)) + geom_bar() + labs(title = "Mortality Readmission Rate Count by Providers") + ylab(label = "Provider Count") +
   theme(axis.text.x = element_text(angle = 45,vjust = 1,hjust = 1),
         plot.title = element_text(hjust = 0.5)) 
 ```
 
+* *Readmission* measure that contribute to the overall count are:
 
+READM-30-AMI 	Acute Myocardial Infarction (AMI) 30-Day Readmission Rate 
+READM-30-COPD Chronic Obstructive Pulmonary Disease (COPD) 30-Day Readmission Rate 
+READM-30-CABG Coronary Artery Bypass Graft (CABG) 30-Day Readmission Rate 
+READM-30-HF 	Heart Failure (HF) 30-Day Readmission Rate 
+READM-30-Hip-Knee 	Hospital-Level 30-Day All-Cause Risk- Standardized Readmission Rate (RSRR) Following Elective Total Hip Arthroplasty (THA)/ Total Knee Arthroplasty (TKA) 
+READM-30-PN 	Pneumonia (PN) 30-Day Readmission Rate 
+READM-30-STK 	Stroke (STK) 30-Day Readmission Rate 
+READM-30-HOSP-WIDE 	HWR Hospital-Wide All-Cause Unplanned Readmission
+
+* *Mortality* group that contribute to Overall Hospital Rating are:
+MORT-30-AMI 	Acute Myocardial Infarction (AMI) 30-Day Mortality Rate 
+MORT-30-CABG 	Coronary Artery Bypass Graft (CABG) 30-Day Mortality Rate 
+MORT-30-COPD 	Chronic Obstructive Pulmonary Disease (COPD) 30-Day Mortality Rate 
+MORT-30-HF 	Heart Failure (HF) 30-Day Mortality Rate 
+MORT-30-PN 	Pneumonia (PN) 30-Day Mortality Rate 
+MORT-30-STK 	Acute Ischemic Stroke (STK) 30-Day Mortality Rate 
 
 ```{r}
 levels(readm_mort_cleaned$Measure.ID)
@@ -646,8 +670,12 @@ zvar1 <- which(names(readm_mort_final) %in% c("MORT_30_AMI","MORT_30_CABG","MORT
 readmission_grp <- readm_mort_final[,-zvar1]
 ```
 
-# Checking the correlation between different measures
+```{r}
+dim(readmission_grp)
+dim(mortality_grp)
+```
 
+# Checking the correlation between different measures
 ```{r}
 cor.plot(mortality_grp[,-1],cex.axis = 0.6, numbers = TRUE,cex = 0.7,stars = FALSE,show.legend = F,xlas = 2, main = "Mortality Group Correlation Plot")
 ```
@@ -657,13 +685,13 @@ cor.plot(readmission_grp[,-1],cex.axis = 0.6, numbers = TRUE,cex = 0.7,stars = F
 pairs.panels(readmission_grp[,-1],scale = TRUE,ellipses = TRUE,pch = 21,bg = rainbow(n = ncol(readmission_grp)),cex.labels = 0.7)
 ```
 
-* All varaibles in the dataset are significant and thus are being retained into the final 
-* Two variables that are significant are significant correlated 
-+ 1. Readmission_Hospital_Wide and Readm_PN death rate, 
+* All varaibles in the dataset are significant and thus are being retained into the final dataframe
+* Two variables that are significant and strong correlation between them are: 
++ 1. Readmission_Hospital_Wide and Readm_PN death rate
 + 2. Readmission-after discharge and Heart Failure
 + 3. Readmission after discharge and COPD
 
-ailments are significantly correlated.
+Ailments are significantly correlated.
 
 * Combining the mortality and readmission group with the master dataframe.
 
@@ -672,13 +700,11 @@ master_df <- merge(x = master_df,y = readm_mort_final,by = intersect(x = names(m
 dim(master_df)
 ```
 
-
 # Analysis of Imaging dataset
 
 ```{r}
 op_imaging_eff_df <- read.csv(file = "ValidFiles/Outpatient Imaging Efficiency - Hospital.csv",header = T,check.names = T,na.strings = c("Not Available",""),stringsAsFactors = T)
 head(op_imaging_eff_df)
-
 ```
 
 # Purging the variables that no useful for analysis
@@ -693,27 +719,38 @@ head(op_imaging_eff_cleaned)
 summary(op_imaging_eff_cleaned)
 ```
 
+# NA imputation in the Score variables
 * which measures Scores have NAs? 
 In order to check the NAs, Footnote is taken as reference to validate the NAs
 
 ```{r}
 op_imaging_eff_cleaned[is.na(op_imaging_eff_cleaned$Footnote),] %>% summary()
 op_imaging_eff_cleaned[!is.na(op_imaging_eff_cleaned$Score),] %>% summary()
+```
 
+*  From the summary we can infer that most of the NAs in the score are induced by Stale data represented by different classess of Footnotes
+```{r}
 op_imaging_eff_cleaned <- op_imaging_eff_cleaned[is.na(op_imaging_eff_cleaned$Footnote),] 
 ```
-*  from the summary we can infer that most of the NAs in the score are induced by Stale data identified from different classess of Footnotes
-
+# Plotting the trends of Measure Variables acorss the providers
 ```{r}
 ggplot(op_imaging_eff_cleaned,aes(Measure.ID)) + geom_bar() + labs(title = "Count of Providers Vs Imaging Efficiency measures") + 
   theme(plot.title = element_text(hjust = 0.5))
-  
-ggplot(op_imaging_eff_cleaned,aes(Measure.ID, mean(Score))) + geom_col() + labs(title = "Count of Providers Vs Imaging Efficiency measures") + 
-  theme(plot.title = element_text(hjust = 0.5))
-
 ```
 
-# Considering the imaging parameters OP_8,OP_10,OP_11,OP_13,OP_14
+```{r}
+ggplot(op_imaging_eff_cleaned,aes(Measure.ID, mean(Score))) + geom_col() + labs(title = "Count of Providers Vs Imaging Efficiency measures") + 
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+* Considering the imaging parameters OP_8,OP_10,OP_11,OP_13,OP_14
+
+*Oupatient Imaging Efficiency Group:*
+OP-8 	  MRI Lumbar Spine for Low Back Pain 
+OP-10 	Abdomen CT Use of Contrast Material 
+OP-11 	Thorax CT Use of Contrast Material 
+OP-13 	Cardiac Imaging for Preoperative Risk Assessment for Non-Cardiac Low-Risk Surgery 
+OP-14 	Simultaneous Use of Brain Computed Tomography (CT) and Sinus CT 
 
 ```{r}
 zvar1 <- c("Provider.ID","Measure.ID","Score")
@@ -725,373 +762,25 @@ op_imaging_eff_final <- op_imaging_eff_final[,-ncol(op_imaging_eff_final)]
 head(op_imaging_eff_final)
 ```
 * Checking the variability
+```{r}
+pairs.panels(op_imaging_eff_final[,-1],scale = T,smooth = T,density = T,ellipses = T,pch = 21,method = 'pearson',cex.labels = 1,cex.cor = 1)
+cor.plot(op_imaging_eff_final[,-1],show.legend = F,xlas = 2,keep.par = T,numbers = T,colors = T)
+```
+* Data variablility is uniform acorss the dataset except the Op_10 and OP-11 measure which are closely correlated with skewed distribution
 
 * Merging the imaging the dataframe with Master_dataframe
 
 ```{r}
-master_df <- merge(x = master_df,y = op_imaging_eff_final,by = intersect(x = names(master_df),y = names(op_imaging_eff_final)),all = TRUE) %>% head()
-dim(master_df)
+master_df <- merge(x = master_df,y = op_imaging_eff_final,by = intersect(x = names(master_df),y = names(op_imaging_eff_final)),all = TRUE) #%>% head()
 ```
 
-
-
-
-<!-- ```{r} -->
-
-<!-- quantile(hai_df_cleaned_measure_ids$Score,probs = seq(0,1,0.01)) # 99.9 percentile and above -->
-<!-- summary(quantile(hai_df_cleaned_measure_ids$Score,probs = 0.999))  -->
-
-<!-- hai_df_no_outliers <- hai_df_cleaned_measure_ids[-which((hai_df_cleaned_measure_ids$Score >= quantile(hai_df_cleaned_measure_ids$Score,probs = 0.999))),] -->
-
-<!-- summary(hai_df_no_outliers) -->
-
-<!-- ggplot(hai_df_no_outliers,aes(y = Score)) + geom_boxplot() +  -->
-<!--   facet_wrap(facets = "Measure.ID",scales = "free") -->
-
-<!-- ``` -->
-
-
-
-<!-- ```{r} -->
-<!-- # Spreading the measure ids -->
-<!-- hai_df_spreaded <- hai_df_no_outliers %>% spread(key = Measure.ID,value = Score,fill = 0) -->
-
-<!-- hai_df_no_outliers %>% group_by(Compared.to.National,Measure.ID) %>% summarise(cnt_rows = n()) %>% arrange(Measure.ID,desc(cnt_rows)) %>% -->
-<!--   ggplot(aes(reorder(Measure.ID,cnt_rows),cnt_rows)) + geom_col() + facet_wrap(facets = ~Compared.to.National) + xlab(label = "Measure.ID") + -->
-<!--   theme(axis.text.x = element_text(angle = 90))  -->
-
-<!-- hai_df_spreaded %>% spread(key = Compared.to.National,value = 0) -->
-
-<!-- head(hai_df_spreaded) -->
-<!-- str(hai_df_spreaded) -->
-<!-- summary(hai_df_spreaded) -->
-
-<!-- ``` -->
-
-<!-- - standardization of scores (Measure_score - mean_score)/standard.deviation.score -->
-
-<!-- ```{r} -->
-<!-- options(scipen = 100) -->
-
-<!-- hai_df_spreaded$HAI_1_SIR -->
-
-<!-- round((hai_df_no_outliers$Score - mean(hai_df_spreaded$HAI_1_SIR))/sd(hai_df_spreaded$HAI_1_SIR),2) %>% summary -->
-
-
-
-<!-- ``` -->
-
-
-
-
-
-<!-- ```{r} -->
-
-<!-- # standardizaing the variables -->
-<!-- zcomp <-  apply(complications_df_spread[,-1],MARGIN = 2,FUN =  function(x) (x - mean(x))/sd(x)) -->
-<!-- summary(zcomp) -->
-
-<!-- library(reshape2) -->
-<!-- ggplot(data = melt(zcomp),aes(value)) + geom_histogram() + facet_wrap(facets = ~Var2 , scales = "free") -->
-
-<!-- # applying winsorization and filtering data with +/- 3Signma -->
-<!-- zcomp_winsor <- winsor(x = zcomp,trim = 0.00125) -->
-<!-- ggplot(data = melt(zcomp_winsor),aes(value)) + geom_histogram() + facet_wrap(facets = ~Var2 , scales = "free" ) -->
-
-<!-- pairs.panels(zcomp_winsor,stars = TRUE,density = TRUE,pch = 21, -->
-<!--                     bg = rainbow(n = ncol(zcomp_winsor))) -->
-
-
-<!-- prin_spread <- princomp(zcomp_winsor,cor = T ,scores = T,covmat = NULL) -->
-<!-- summary(prin_spread) -->
-<!-- prin_spread$loadings -->
-
-<!-- fa_comp <- factanal(x = zcomp_winsor,factors = 5,rotation = "varimax") -->
-<!-- fa_comp -->
-<!-- fa_comp$loadings -->
-
-<!-- library(psych) -->
-<!-- library(devtools) -->
-<!-- #install_github(repo = "ggbiplot")#,username = vijay.mudivedu@iiitb.net,quiet = TRUE) -->
-<!-- library(ggbiplot) -->
-<!-- ggbiplot(prin_spread,obs.scale = 1,groups = levels(melt(zcomp_winsor)$Var2) ,var.scale = 1, ellipse = TRUE,circle = TRUE, ellipse.prob = 0.68) + -->
-<!--   scale_color_discrete(name = '')  -->
-
-<!-- screeplot(x = fa_comp,type = "l",main = "screeplt",npcs = 3) -->
-
-<!-- fa_comp_df <- fa(r = zcomp_winsor,nfactors = 1,rotate = "varimax",fm = "pa") -->
-<!-- fa_comp_df -->
-<!-- ?fa() -->
-<!-- summary(fa_comp_df) -->
-
-<!-- ``` -->
-
-
-
-<!-- Standardizing the measures -->
-
-<!-- ```{r} -->
-
-<!-- str(general_info_cleaned) -->
-<!-- merge(general_info_cleaned) -->
-
-<!-- ``` -->
-
-
-
-<!-- ```{r} -->
-
-<!-- #How is the distrbituion of measures before and after removing the footnote NAs, Cleaning up the denominators of NAs -->
-<!-- complications_df_cleaned %>% group_by(Measure.ID) %>% summarise(cnt_rws = n(),avg_scr = mean(Score,na.rm = T),avg_denom = mean(Denominator,na.rm = T)) %>% arrange(desc(avg_scr)) -->
-<!-- complications_df_cleaned_footnote_nas %>% group_by(Measure.ID) %>% summarise(cnt_rws = n(),avg_scr = mean(Score),avg_denom = mean(Denominator,na.rm = T)) %>% arrange(desc(avg_scr)) -->
-
-
-<!-- ``` -->
-<!-- - Large average scores and low denominators are due to "PSI_4_SURG_COMP: Deaths among patients with serious treatable Complications after surgery""  -->
-<!-- - PSI_90_SAFETY: has no denominator score as this measure is calculated from PSI 03,06, The CMS PSI 90 is calculated from PSIs 03, 06, 08, 09, 10, 11, 12, 13, 14 and 15. -->
-<!-- and low average score. Hence doesn't fit well into the scoring needs. -->
-<!-- - PSI_4_SURG_COMP: induces low extreme outliers in "Denominator" variable and high extremes in "Scores" Variable -->
-
-<!-- ### outlier scoring data -->
-
-<!-- ```{r} -->
-<!-- # distribution of outliers -->
-
-<!-- ggplot(data = complications_df_cleaned_footnote_nas,aes(x = Score,y = Denominator,col = Measure.ID)) +  -->
-<!--   geom_point(position = position_jitter()) +  -->
-<!--   facet_wrap(facets = ~ Measure.ID,scales = "free") + -->
-<!--   theme(legend.position = "bottom", legend.background = element_blank()) -->
-<!--   #theme(legend.position = c(0.8,0.6), legend.background = element_blank()) -->
-
-<!-- ``` -->
-
-<!-- * Clearly, the above plot shows that data is distribeted into two chunks with a clear separation. Value scores above 100, SURG COMP and value scores below 25 for the rest measure IDs -->
-<!-- * High Scores with Least Low "Denominators" in PSI_4_SURG_COMP is an outlier amoung the available set of variable levels. -->
-
-
-<!-- ```{r} -->
-
-<!-- # removing the outelier induced by "PSI_4_SURG_COMP" PSI -->
-<!-- complications_df_cleaned_footnote_nas_denom_outliers <-  -->
-<!--   complications_df_cleaned_footnote_nas_denom[!complications_df_cleaned_footnote_nas_denom$Measure.ID == "PSI_4_SURG_COMP",] -->
-
-<!-- # summary of complications df after removing the outliers induced by the "PSI_4_SURG_COMP" -->
-<!-- summary(complications_df_cleaned_footnote_nas_denom_outliers) -->
-
-<!-- ``` -->
-
-
-<!-- ```{r} -->
-
-<!-- quantile(complications_df_cleaned_footnote_nas_denom_outliers$Denominator,probs =  seq(0, 1, 0.01),na.rm = T ) -->
-<!-- # Plotting the outliers in the Denominators -->
-<!-- plot(quantile(complications_df_cleaned_footnote_nas_denom_outliers$Denominator,probs =  seq(0, 1, 0.01),na.rm = T ), -->
-<!--      main = "Outliers in Denominator", ylab = "Value of Denominators",xlab = "Index") -->
-
-<!-- quantile(complications_df_cleaned_footnote_nas_denom_outliers$Score,probs =  seq(0, 1, 0.01),na.rm = T ) -->
-<!-- plot(quantile(complications_df_cleaned_footnote_nas_denom_outliers$Score,probs =  seq(0, 1, 0.001),na.rm = T ), -->
-<!--      main = "Outliers in Score", ylab = "Value of Scores",xlab = "Index") -->
-
-
-
-<!-- ``` -->
-
-<!-- - From the 96th percentile onwards the value of variable have started to increase steeply and outliers are identified around this percentile -->
-
-<!-- ```{r} -->
-<!-- #steady increase in the value except the last quantile last 10% of quantile values are abrupt -->
-<!-- quantile(complications_df$Score,probs =  seq(0, 1, 0.01),na.rm = T ) #abrupt increase in the quantile score about 94%. -->
-<!-- plot(quantile(complications_df$Score,probs =  seq(0, 1, 0.01),na.rm = T )) #abrupt increase in the quantile score about 94%. -->
-
-<!-- ``` -->
-
-
-
-<!-- #### Analysing the outliers futher about their significance, it can be noticed that -->
-
-<!-- ```{r} -->
-<!-- # outliers are identified in Denominator in more >99% quantile. Filter the the records that are 99% and above of denominator -->
-<!-- zdenom_outliers <-  which( -->
-<!--   #complications_df_cleaned_footnote_nas_denom_outliers$Denominator <=  quantile(complications_df_cleaned_footnote_nas_denom_outliers$Denominator,probs = 0.1) | -->
-<!--   complications_df_cleaned_footnote_nas_denom_outliers$Denominator >=  -->
-<!--                             quantile(complications_df_cleaned_footnote_nas_denom_outliers$Denominator,probs = 0.97)) -->
-<!-- length(zdenom_outliers) -->
-
-<!-- complications_df_denom_outliers <- complications_df_cleaned_footnote_nas_denom_outliers[zdenom_outliers,] -->
-<!-- summary(complications_df_denom_outliers) -->
-<!-- ``` -->
-
-<!-- # eliminating the outliers in the complications cleaned dataframe -->
-
-
-<!-- ```{r} -->
-
-<!-- complications_df_cleaned_denom_non_outliers <- complications_df_cleaned_footnote_nas_denom_outliers[-zdenom_outliers,] -->
-<!-- summary(complications_df_cleaned_score_non_outliers) -->
-
-<!-- plot(quantile(complications_df_cleaned_denom_non_outliers$Denominator,probs = seq(0,1,0.01)),type = "p", -->
-<!--      main = "Denominator variable after eliminating the denominator outliers", -->
-<!--      ylab = "Denominator values") -->
-<!-- plot(quantile(complications_df_cleaned_denom_non_outliers$Score,probs = seq(0,1,0.001)),type = "p", -->
-<!--      main = "Score variable after eliminating the denominator outliers", -->
-<!--      ylab = "Score values") -->
-<!-- boxplot(complications_df_cleaned_denom_non_outliers$Score) -->
-<!-- boxplot(complications_df_cleaned_denom_non_outliers$Denominator) -->
-
-
-
-<!-- ``` -->
-
-
-
-<!-- ```{r} -->
-
-<!-- quantile(complications_df_cleaned_denom_non_outliers$Score,probs = seq(0,1,0.01)) -->
-
-<!-- zscore_outliers <-  which( -->
-<!--   complications_df_cleaned_denom_non_outliers$Score <= quantile(complications_df_cleaned_denom_non_outliers$Score,probs = 0.11) | -->
-<!--   complications_df_cleaned_denom_non_outliers$Score >= quantile(complications_df_cleaned_denom_non_outliers$Score,probs = 0.99)) -->
-<!-- length(zscore_outliers) -->
-
-<!-- # Verfiying the outliers in Score variable after identify and removing the outliers in"Score" variable -->
-<!-- complications_df_score_outliers <- complications_df_cleaned_denom_non_outliers[zscore_outliers,] -->
-<!-- summary(complications_df_score_outliers) -->
-
-<!-- ``` -->
-<!-- - Large set of records from Post_HIP measure are being cleansed due to very low values of This level  -->
-
-<!-- ```{r} -->
-<!-- complications_df_score_non_outliers <- complications_df_cleaned_denom_non_outliers[-zscore_outliers,] -->
-<!-- summary(complications_df_score_non_outliers) -->
-<!-- summary(complications_df_score_non_outliers$Measure.ID) -->
-
-<!-- ``` -->
-
-
-
-<!-- ```{r} -->
-<!-- # Applying log transformation to convert the log distribution of denominator and normalizing the variable.  -->
-<!-- plot(quantile(log(complications_df_cleaned_footnote_nas_denom_outliers$Score),probs =  seq(0, 1, 0.01),na.rm = T ),  -->
-<!--      main = "Score - after outerliers removed from Score", -->
-<!--      ylab = "Score with values") -->
-<!-- plot(quantile(log(complications_df_cleaned_footnote_nas_denom_outliers$Denominator),probs =  seq(0, 1, 0.01),na.rm = T )) -->
-
-<!-- #After removing the outliers -->
-<!-- plot(quantile(log(complications_df_score_non_outliers$Score),probs =  seq(0, 1, 0.01)),main = "Score - after outerliers removed from Score", -->
-<!--     ylab = "Score with values") -->
-<!-- plot(quantile(log(complications_df_score_non_outliers$Denominator),probs =  seq(0, 1, 0.01)), main = "Denominator after outerliers from Score",ylab = "Denominator Values") -->
-
-<!-- ``` -->
-
-<!-- - Several of the values have been straightened out and 8 important measures are identified. -->
-
-<!-- # cleaning the unwanted variables Measure.Name, ZipCode -->
-<!-- ```{r} -->
-<!-- zredundant_vars <- -->
-<!--   which(names(complications_df_score_non_outliers) %in%  -->
-<!--           c("Measure.Name","ZIP.Code","Lower.Estimate","Higher.Estimate","Denominator")) -->
-<!-- complications_df_score_non_outliers_spread <- complications_df_score_non_outliers[,-zredundant_vars] -->
-
-<!-- complications_df_spread <-  complications_df_score_non_outliers_spread %>% spread(key = Measure.ID,value = Score,fill = 0)# %>% head() -->
-<!-- str(complications_df_spread) -->
-
-<!-- prop.table(table(complications_df_spread$Compared.to.National))*100 -->
-
-<!-- ``` -->
-<!-- -  Complications variable has inequal spread of variables -->
-
-<!-- ```{r} -->
-<!-- ggplot(data = complications_df_score_non_outliers_spread,aes(x = Measure.ID,y = Score)) + geom_boxplot() + -->
-<!--   theme(axis.text.x = element_text(angle = 90)) -->
-<!-- ``` -->
-
-
+1. check outliers in the measures
+2. imputing missing values
 
 ```{r}
-# hai_df_cleaned_outliers <- hai_df_cleaned[which(hai_df_cleaned$Score %in% boxplot.stats(hai_df_cleaned$Score,coef = 1.58)$out),]
-# hai_df_cleaned_non_outliers <- hai_df_cleaned[-which(hai_df_cleaned$Score %in% boxplot.stats(hai_df_cleaned$Score,coef = 1.58)$out),]
-# 
-# summary(hai_df_cleaned_non_outliers)
-# 
-# ggplot(data = hai_df_cleaned_non_outliers,aes(x = Measure.ID,y = Score)) + 
-#   geom_boxplot() + #xlab("Measure.ID") +
-#   theme(axis.text.x = element_text(angle = 90))
-# 
-# quantile(x = hai_df_cleaned_non_outliers$Score,probs = seq(0,1,0.01))
-# 
-# hai_df_no_outliers <- hai_df_cleaned_non_outliers[which((hai_df_cleaned_non_outliers$Score >= quantile(hai_df_cleaned_non_outliers$Score,probs = c(0.15)) &
-#                                                         hai_df_cleaned_non_outliers$Score <= quantile(hai_df_cleaned_non_outliers$Score,probs = c(0.9))))
-#                                                   ,]
-# str(hai_df_no_outliers)
-# summary(hai_df_no_outliers)
-# 
-# hai_df_spreaded <- hai_df_no_outliers %>% spread(key = Measure.ID,value = Score,fill = 0) #%>% head()
-# hai_df_spreaded %>% head()
-# 
-# ggplot(data = hai_df_no_outliers,aes(x = Measure.ID,y = Score)) + 
-#   geom_boxplot() + #xlab("Measure.ID") +
-#   theme(axis.text.x = element_text(angle = 90))
-# 
-# ggplot(hai_df_no_outliers,aes(Score)) + geom_histogram() +
-#   facet_wrap(~Measure.ID,scales = "free")
-
-
+summary(master_df)
 ```
 
-
-
-```{r}
-# # 2. check outliers in the measures
-# compli_bxplt_outliers <- boxplot.stats(complications_df_cleaned$Score,coef = 1.58)$out
-# boxplot(complications_df$Score)
-# compli_bxplt_outliers
-# 
-# complications_df_cleaned_score_outliers <-  complications_df_cleaned[which(complications_df_cleaned$Score %in% compli_bxplt_outliers),]
-# head(complications_df_cleaned_score_outliers)
-# summary(complications_df_cleaned_score_outliers) 
-# #There are no NAs in outliers
-# # intrestingly most of the outliers are in measures Surgical Complications PSI_4_SURG_COMP, Blood Stream infection after surgery
-# 
-# # Which hospitals are contributing to most outlier scores?
-# complications_df_cleaned_score_outliers %>% group_by(factor(Provider.ID), Hospital.Name) %>% summarise(cnt_row = n()) %>% arrange(desc(cnt_row))
-# 
-# # Which state is contributing to outlier scores in complications dataset? 
-# complications_df_cleaned_score_outliers %>% group_by(ZIP.Code) %>% summarise(cnt_rows = n()) %>% arrange(desc(cnt_rows)) #Houston's County and LA Counts
-# 
-# # spreading the measures by their scores
-# complications_df_cleaned_score_outliers %>% filter(ZIP.Code == "77030")  %>% spread(key = Measure.ID,value = Score,fill = 0)  
-# 
-# histogram(complications_df_cleaned_score_outliers$Score) # outliers are skewing the dataset heavily. 50% of the outliers are too small consider. Eliminating the lower values 
-# 
-# # how many records are lower than the median value in outliers
-# sum(complications_df_cleaned_score_outliers$Score < median(complications_df_cleaned_score_outliers$Score))/nrow(complications_df_cleaned_score_outliers)
-# # about 1870/3742 - approximately 50% of records lower than the median value. 
-# 
-# #Eliminating the outliers that cannot be measure
-# complications_df_cleaned_score_outliers_lower_tail_purged <- 
-#   complications_df_cleaned_score_outliers[!(complications_df_cleaned_score_outliers$Score < 
-#                                               20#median(complications_df_cleaned_score_outliers$Score)
-#                                             ),] 
-# 
-# histogram(complications_df_cleaned_score_outliers_lower_tail_purged$Score)
-
-```
-
-
-
-#-------------------------
-#-Data preparation
-#--------------------
-
-Different things to be checked
-1. Check if there are any duplicate measures
-2. check outliers in the measures
-3. Remove unwanted rows/columns
-4. imputing missing values
-5. convert all characters to lower case
-6. check for invalid characters
-
-Numeric variables in complications dataframe are:
 
 ```{r}
 # Remove unwanted Rows
@@ -1129,22 +818,6 @@ library(mice)
 library(psych)
 pairs.panels(x = complications_df[int_comp_var],scale = T,ellipses = T,pch = 20,method = 'pearson',cor = T)
       
-```
-### Comments: Removing the NAs impacts the the  score. There are 18410 
-
-
-```{r}
-# NA analaysis of the other variables
-sapply(complications_df[!is.na(complications_df$Score),],summary)
-
-```
-
-```{r}
-#check the correlation between the variables score, denominiator, lower estimate, higher estimate
-cor(complications_df[int_comp_var],use = 'complete.obs')
-```
-#### There is a strong correlation between score, lower.estimate, higher.estimate, negative correlation between the score, Lower.estimate
-
 
 
 
@@ -1160,47 +833,3 @@ cor(complications_df[int_comp_var],use = 'complete.obs')
 
 ```
 
-
-
-# 1 infections
-infected_df <- read.csv(file = "Healthcare Associated Infections - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
-View(infected_df)
-
-# 2 Patient Survey
-hcahps_survey_hopital_df <- read.csv("HCAHPS - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
-hcahps_survey_national_df <- read.csv("HCAHPS - National.csv",header = T,check.names = T,stringsasFactors = T)
-hcahps_survey_state_df <- read.csv("HCAHPS - State.csv",header = T,check.names = T,stringsasFactors = T)
-View(hcahps_hopital_df)
-
-
-# 3 General Information
-gen_info <- read.csv(file = "Hospital General Information.csv",header = T,check.names = T,stringsasFactors = T)
-View(gen_info)
-
-# 4 out patient imaging efficiency
-imaging_efficiency <- read.csv(file = "Outpatient Imaging Efficiency - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
-View(imaging_efficiency)
-
-# 5 payment and value of care
-payment_value_of_care <- read.csv(file = "Payment and Value of Care - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
-View(payment_value_of_care)
-
-# 6 readmission deaths
-readmission_deaths <- read.csv(file = "Readmissions and Deaths - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
-View(readmission_deaths)
-
-# 7 timely effective care
-Timely_effective_care <- read.csv(file = "Timely and Effective Care - Hospital.csv",header = T,check.names = T,stringsasFactors = T)
-View(Timely_effective_care)
-
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
