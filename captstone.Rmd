@@ -25,71 +25,52 @@ general_info <- read.csv(file = "ValidFiles/Hospital General Information.csv",he
 str(general_info) 
 ```
 
-```{r}
-summary(general_info)
-```
 
-* This analysis is being run for Acute Care Hospitals. 
-* But the dataset contains the Acute care, Childrens, and Critical Access Hosptials. Hence filtering out all the acute care hosptials from the General Information dataset
+<!-- * This analysis is being run for Acute Care Hospitals.  -->
+<!-- * But the dataset contains the Acute care, Childrens, and Critical Access Hosptials.  -->
+<!-- * Hence filtering out all the acute care hosptials from the General Information dataset -->
 
 
-```{r}
-unique(general_info$Hospital.Type)
-```
+<!-- ```{r} -->
+<!-- unique(general_info$Hospital.Type) -->
+<!-- ``` -->
 #### filtering the acute care hospitals, removing the columns not needed for analysis
 
 ```{r}
 zdemographics <- c("Hospital.Name","Address","City","State","County.Name","Phone.Number","ZIP.Code")
+zdemogrphic_vars <- which(names(general_info) %in% zdemographics)
 
 zvar1 <- c("Hospital.Type","Hospital.Ownership","Emergency.Services","Meets.criteria.for.meaningful.use.of.EHRs")
 zvar2 <- which(names(general_info) %in% zvar1)
 
-general_info_cleaned <- general_info[,-which(names(general_info) %in% zdemographics)]
-#general_info_cleaned <-  general_info_cleaned[general_info_cleaned$Hospital.Type %in% "Acute Care Hospitals",- zvar2]
-general_info_cleaned <-  general_info_cleaned[,-zvar2]
-summary(general_info_cleaned)
+general_info_cleaned <- general_info[,-c(zdemogrphic_vars,zvar2)]
+general_info_cleaned$Hospital.overall.rating <- as.factor(general_info_cleaned$Hospital.overall.rating)
 ```
 # Check if the NAs in the Ratings are missing at Random in the Footnote
 
-```{r}
-general_info_cleaned$Hospital.overall.rating <- as.factor(general_info_cleaned$Hospital.overall.rating)
-str(general_info_cleaned)
+* footnote with levels are inducing the NAs in the dataset: 
++ "Data are shown only for hospitals that participate in the Inpatient Quality Reporting (IQR) and Outpatient Quality Reporting (OQR) programs" is inducing the NAs across the dataset, 
++ "Data suppressed by CMS for one or more quarters"
 
-```
-
-* footnote with: "Data are shown only for hospitals that participate in the Inpatient Quality Reporting (IQR) and Outpatient Quality Reporting (OQR) programs" is inducing the NAs across the dataset, 
-* As the IQR and OQR information is partly available. This enables us to conclude that the provider ids related this level can be purged from the dataset
+* This enables us to conclude that the provider ids related this level can be purged from the dataset
 
 ```{r}
 general_info_cleaned %>% filter(general_info_cleaned$Hospital.overall.rating.footnote %in% 
-           c("Data are shown only for hospitals that participate in the Inpatient Quality Reporting (IQR) and Outpatient Quality Reporting (OQR) programs")) %>% group_by(Hospital.overall.rating,Mortality.national.comparison,Readmission.national.comparison,Safety.of.care.national.comparison,Efficient.use.of.medical.imaging.national.comparison,Timeliness.of.care.national.comparison,Effectiveness.of.care.national.comparison,Patient.experience.national.comparison) %>% 
+           c("Data are shown only for hospitals that participate in the Inpatient Quality Reporting (IQR) and Outpatient Quality Reporting (OQR) programs",
+             "Data suppressed by CMS for one or more quarters")) %>% group_by(Hospital.overall.rating,Mortality.national.comparison,Readmission.national.comparison,Safety.of.care.national.comparison,Efficient.use.of.medical.imaging.national.comparison,Timeliness.of.care.national.comparison,Effectiveness.of.care.national.comparison,Patient.experience.national.comparison) %>% 
   summarise(count_rws = n()) %>% t()
 
 general_info_cleaned <- general_info_cleaned %>% 
   filter(!general_info_cleaned$Hospital.overall.rating.footnote %in% 
-           c("Data are shown only for hospitals that participate in the Inpatient Quality Reporting (IQR) and Outpatient Quality Reporting (OQR) programs"))
-
-summary(general_info_cleaned)
+           c("Data are shown only for hospitals that participate in the Inpatient Quality Reporting (IQR) and Outpatient Quality Reporting (OQR) programs",
+             "Data suppressed by CMS for one or more quarters"))
 
 ```
-```{r}
 
-general_info_cleaned %>% filter(general_info_cleaned$Hospital.overall.rating.footnote %in% 
-           c("Data suppressed by CMS for one or more quarters")) %>% group_by(Hospital.overall.rating,Mortality.national.comparison,Readmission.national.comparison,Safety.of.care.national.comparison,Efficient.use.of.medical.imaging.national.comparison,Timeliness.of.care.national.comparison,Effectiveness.of.care.national.comparison,Patient.experience.national.comparison) %>% 
-  summarise(count_rws = n()) %>% t()
-#general_info_cleaned[general_info_cleaned$Hospital.overall.rating.footnote %in% c("Data suppressed by CMS for one or more quarters"),]
-```
 * Similarly, "Data suppressed by CMS for one or more quarters" also cannot be used for analysis as this is inducing the NAs across the datasets, which mandates to purge the dataset with missing NAs
 
 ```{r}
-general_info_cleaned <- general_info_cleaned %>% filter(!general_info_cleaned$Hospital.overall.rating.footnote %in% 
-           c("Data suppressed by CMS for one or more quarters"))
-
-summary(general_info_cleaned)
-```
-```{r}
 barplot(prop.table(table(general_info_cleaned$Hospital.overall.rating)))
-
 ```
 
 * Barplot of the ratings show that the Hospital rating has a gaussian distribution
@@ -98,23 +79,21 @@ barplot(prop.table(table(general_info_cleaned$Hospital.overall.rating)))
   - "There are too few measures or measure groups reported to calculate a star rating or measure group score"
   - "Results are not available for this reporting period"
 
-
 ```{r}
 general_info_cleaned %>% 
   filter(general_info_cleaned$Hospital.overall.rating.footnote %in% 
            c("Results are not available for this reporting period",
              "There are too few measures or measure groups reported to calculate a star rating or measure group score")) %>% summary()
 ```
-* The above specific additional footnotes also contribute to the NAs in Hospital Overall Rating with multilevel dependency on the other groups. For example, specified ones below contribue less to NAs, compared to Mortality, Safety of care, Readmission, Efficient Use of medical Imaging.
-  - "Patient.experience" , "Effectiveness.of.care", "Timeliness.of.care"
+* The above specific additional footnotes also contribute to the NAs in Hospital Overall Rating with multilevel dependency on the other groups. 
+* For example, specified ones below contribue less to NAs, compared to Mortality, Safety of care, Readmission, Efficient Use of medical Imaging.
+  + "Patient.experience" , "Effectiveness.of.care", "Timeliness.of.care"
 
 ```{r}
 general_info_cleaned <- general_info_cleaned %>% 
   filter(!general_info_cleaned$Hospital.overall.rating.footnote %in% 
            c("Results are not available for this reporting period",
              "There are too few measures or measure groups reported to calculate a star rating or measure group score")) 
-           #c("This hospital\x92s star rating only includes data reported on inpatient services")) %>% summary()#group_by(Hospital.overall.rating) %>% summarise(n())
-           #c("There are too few measures or measure groups reported to calculate a star rating or measure group score")) %>% summary()
 
 summary(general_info_cleaned)
 
@@ -140,7 +119,7 @@ head(complications_df)
 * Cleaning the demographic variables that do not have an impact on the Measure IDs
 
 ```{r}
-# Remove demographic details, start_data and
+
 zdemographics <- c("Hospital.Name","Address","City","State","ZIP.Code","County.Name","Phone.Number","Measure.Start.Date", "Measure.End.Date")
 zdemogrphic_vars <- which(names(complications_df) %in% zdemographics)
 complications_df_cleaned <- complications_df[,-zdemogrphic_vars]
@@ -413,7 +392,7 @@ summary(patient_exp_group)
 pairs.panels(patient_exp_group[,-1],cex.labels = 0.6 ,cex.cor = 0.7,main = "Relationship between measures")
 ```
 
-- Patient experience measures are uniformly distributed about their mean
+- Patient experience measures are uniformly distributed about their mean. Each of the measures have a strong correlation between them.
    +  Cleanliness of Hospital Environment (Q8)  - H_Clean_HSP
    +  Nurse Communication (Q1, Q2, Q3)          - H_COMP_1
    +  Doctor Communication (Q5, Q6, Q7)         _ H_COMP_2
@@ -458,7 +437,7 @@ summary(time_and_eff_care_cleaned)
  + 1. Blank Levels (NA) 2.  "2 - Data submitted were based on a sample of cases/patients."
 
 ```{r}
-time_and_eff_care_cleaned %>% group_by(Footnote) %>% tally(sort = T)
+time_and_eff_care_cleaned %>% group_by(Footnote) %>% tally()
 ```
 
 
@@ -697,7 +676,6 @@ Ailments are significantly correlated.
 
 ```{r}
 master_df <- merge(x = master_df,y = readm_mort_final,by = intersect(x = names(master_df),y = names(readm_mort_final)),all = TRUE)
-dim(master_df)
 ```
 
 # Analysis of Imaging dataset
@@ -719,7 +697,7 @@ head(op_imaging_eff_cleaned)
 summary(op_imaging_eff_cleaned)
 ```
 
-# NA imputation in the Score variables
+* NA imputation in the Score variables
 * which measures Scores have NAs? 
 In order to check the NAs, Footnote is taken as reference to validate the NAs
 
@@ -773,7 +751,6 @@ cor.plot(op_imaging_eff_final[,-1],show.legend = F,xlas = 2,keep.par = T,numbers
 ```{r}
 master_df <- merge(x = master_df,y = op_imaging_eff_final,by = intersect(x = names(master_df),y = names(op_imaging_eff_final)),all = TRUE) #%>% head()
 ```
-
 1. check outliers in the measures
 2. imputing missing values
 
@@ -781,55 +758,97 @@ master_df <- merge(x = master_df,y = op_imaging_eff_final,by = intersect(x = nam
 summary(master_df)
 ```
 
+```{r}
+master_df[is.na(master_df$Hospital.overall.rating),] %>% summary()
+```
+
+# which rows have all NAs?
 
 ```{r}
-# Remove unwanted Rows
+na_indices <- apply(master_df[,-c(1,2)], MARGIN = 1, function(x) all(is.na(x)))
+sum(na_indices)
 
 ```
 
-
-
 ```{r}
-
-zcomp <- sapply(complications_df,class)
-int_comp_var <- which(zcomp %in% c("integer",'numeric'))
-char_comp_var <- which(zcomp %in% c("factor"))
-
-complications_df[char_comp_var] <- sapply(complications_df[char_comp_var], tolower)
-head(complications_df)
+paste0(round(prop.table(table(master_df$Hospital.overall.rating))*100,2),"%")
 ```
 
-
 ```{r}
-#missing value imputation
-sapply(complications_df,function(x) sum(is.na(x))) # distribution of NAs
-```
-There are significant number of NAs in the dataset in Score, Lower Estimate, Higher Estimate.
-Calculating the percentage of NAs in Compared to National Average
-FootNote variable has 59% of data as NAs and hence unusable for analysis. 
-
-
-
-```{r}
-# NA Analysis and checking the correlation of other variables with Compared to National.
-
-sapply(complications_df[is.na(complications_df$Compared.to.National),],summary)
 library(mice)
-library(psych)
-pairs.panels(x = complications_df[int_comp_var],scale = T,ellipses = T,pch = 20,method = 'pearson',cor = T)
-      
+master_df_imputed <- mice(data = master_df[,-c(1,2)],seed = 100,maxit = 5,m = 5)
+attributes(master_df_imputed)
+
+master_df_imputed_final <-  complete(data = trian_impute,action = 5)
+```
+
+
+# Spliting the dataset into training and testing 
+
+```{r}
+set.seed(100)
+indices <- sample(1:nrow(master_df),0.7 * nrow(master_df))
+
+# training dataset
+train_df <- master_df[indices,]
+# test dataset
+test_df <- master_df[-indices,]
+```
+
+# Model building
 
 
 
 
 ```{r}
-# to lower
-
+library(doParallel)
+doParallel::registerDoParallel(cl = 4,cores = 4)
 ```
+
+
+
 
 ```{r}
-# remove unwanted columns
+library(randomForest)
+library(caret)
+train_control_rf <- trainControl(method = "repeatedcv",
+                                  repeats = 5,
+                                  number = 5,
+                                  search = "grid",
+                                  sampling = "smote",
+                                 allowParallel = TRUE)
+
+# Tuning grid parameters of Random Forest
+tuning_grid_rf <- expand.grid(.mtry = round(sqrt(ncol(train_df[,-1]))),ntree = seq(100,1000,100)) 
+
+model_rf <- randomForest(Hospital.overall.rating ~.,
+                         data = train_df_imputed[,-1],
+                         #method = "rf",
+                         trControl = train_control_rf,
+                         tuneGrid = tuning_grid_rf,
+                         metric = "auc",
+                         #do.trace = TRUE,
+                         #importance = TRUE,
+                         na.action = na.roughfix,
+                         seed = 100
+                         )
+
+summary(model_rf)
+
+vars_predict <- setdiff(x = names(train_df[,-1]),y = "Hospital.overall.rating")
+predict_rf <- stats::predict(object = model_rf,test_df[vars_predict])
+# Confusion Matrix
+confusionMatrix(predict_rf,test_df$Hospital.overall.rating)
 
 
 ```
+
+
+
+
+
+
+
+
+
 
