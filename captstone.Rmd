@@ -754,9 +754,6 @@ master_df <- merge(x = master_df,y = op_imaging_eff_final,by = intersect(x = nam
 1. check outliers in the measures
 2. imputing missing values
 
-```{r}
-summary(master_df)
-```
 
 ```{r}
 master_df[is.na(master_df$Hospital.overall.rating),] %>% summary()
@@ -777,9 +774,9 @@ paste0(round(prop.table(table(master_df$Hospital.overall.rating))*100,2),"%")
 ```{r}
 library(mice)
 master_df_imputed <- mice(data = master_df[,-c(1,2)],seed = 100,maxit = 5,m = 5)
-attributes(master_df_imputed)
 
-master_df_imputed_final <-  complete(data = trian_impute,action = 5)
+master_df_imputed_final <-  complete(data = master_df_imputed,action = 5)
+head(master_df_imputed_final)
 ```
 
 
@@ -787,6 +784,11 @@ master_df_imputed_final <-  complete(data = trian_impute,action = 5)
 
 ```{r}
 set.seed(100)
+ratings <- (master_df$Hospital.overall.rating)
+
+as.character(ratings[which(is.na(ratings))]) <- "Missing"
+summary(ratings)
+
 indices <- sample(1:nrow(master_df),0.7 * nrow(master_df))
 
 # training dataset
