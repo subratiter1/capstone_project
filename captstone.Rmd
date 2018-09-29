@@ -783,18 +783,26 @@ master_df_imputed_final <-  complete(data = master_df_imputed,action = 5)
 head(master_df_imputed_final)
 ```
 
-
-# Spliting the dataset into training and testing 
+- Replacing NAs in the target variable Hospital.Overall.Rating to "Missing"
 
 ```{r}
-set.seed(100)
 ratings <- as.character(master_df$Hospital.overall.rating)
 
 ratings[which(is.na(ratings))] <- "Missing"
 master_df$Hospital.overall.rating <- factor(ratings)
 
+
+```
+
+
+# Spliting the dataset into training and testing 
+
+```{r}
+set.seed(100)
+
 master_df_final <- cbind(master_df[,c(1,2)],master_df_imputed_final)
 
+#master_df_final <- master_df
 # Sampling
 indices <- sample(1:nrow(master_df_final),0.7 * nrow(master_df_final))
 
@@ -806,10 +814,6 @@ test_df <- master_df_final[-indices,]
 
 # Model building
 
-```{r}
-library(doParallel)
-doParallel::registerDoParallel(cl = 4,cores = 4)
-```
 
 ### using RandomForest Algorithm
 
@@ -817,6 +821,9 @@ doParallel::registerDoParallel(cl = 4,cores = 4)
 set.seed(100)
 library(randomForest)
 library(caret)
+library(doParallel)
+doParallel::registerDoParallel(cl = 4,cores = 4)
+
 train_control_rf <- trainControl(method = "repeatedcv",
                                   repeats = 5,
                                   number = 5,
