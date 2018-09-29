@@ -2,12 +2,16 @@
 title: "Hospital Ratings CMS"
 author: "Vijay Mudivedu"
 date: '2018-09-02'
-output: 
-  word_document: 
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  word_document:
     toc: yes
 ---
 
 ```{r setup, include=FALSE}
+library(knitr)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -784,33 +788,33 @@ head(master_df_imputed_final)
 
 ```{r}
 set.seed(100)
-ratings <- (master_df$Hospital.overall.rating)
+ratings <- as.character(master_df$Hospital.overall.rating)
 
-as.character(ratings[which(is.na(ratings))]) <- "Missing"
-summary(ratings)
+ratings[which(is.na(ratings))] <- "Missing"
+master_df$Hospital.overall.rating <- factor(ratings)
 
-indices <- sample(1:nrow(master_df),0.7 * nrow(master_df))
+master_df_final <- cbind(master_df[,c(1,2)],master_df_imputed_final)
+
+# Sampling
+indices <- sample(1:nrow(master_df_final),0.7 * nrow(master_df_final))
 
 # training dataset
-train_df <- master_df[indices,]
+train_df <- master_df_final[indices,]
 # test dataset
-test_df <- master_df[-indices,]
+test_df <- master_df_final[-indices,]
 ```
 
 # Model building
-
-
-
 
 ```{r}
 library(doParallel)
 doParallel::registerDoParallel(cl = 4,cores = 4)
 ```
 
-
-
+### using RandomForest Algorithm
 
 ```{r}
+set.seed(100)
 library(randomForest)
 library(caret)
 train_control_rf <- trainControl(method = "repeatedcv",
@@ -824,7 +828,7 @@ train_control_rf <- trainControl(method = "repeatedcv",
 tuning_grid_rf <- expand.grid(.mtry = round(sqrt(ncol(train_df[,-1]))),ntree = seq(100,1000,100)) 
 
 model_rf <- randomForest(Hospital.overall.rating ~.,
-                         data = train_df_imputed[,-1],
+                         data = train_df[,-1],
                          #method = "rf",
                          trControl = train_control_rf,
                          tuneGrid = tuning_grid_rf,
@@ -834,15 +838,20 @@ model_rf <- randomForest(Hospital.overall.rating ~.,
                          na.action = na.roughfix,
                          seed = 100
                          )
-
+model_rf
 summary(model_rf)
+
+
+```
+
+* Prediction using the Random Forest
+
+```{r}
 
 vars_predict <- setdiff(x = names(train_df[,-1]),y = "Hospital.overall.rating")
 predict_rf <- stats::predict(object = model_rf,test_df[vars_predict])
 # Confusion Matrix
 confusionMatrix(predict_rf,test_df$Hospital.overall.rating)
-
-
 ```
 
 
